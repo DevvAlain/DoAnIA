@@ -1,19 +1,17 @@
-# simulator_from_csv.py
 import argparse, threading, time, os, json, csv
 import paho.mqtt.client as mqtt
 import random
 
 DEVICES = [
-    # name, csv_filename (relative), username(optional)
-    ("Temperature", "features_Temperature.csv", "sensor_temp"),
-    ("Light", "features_Light_Intensity.csv", "sensor_light"),
-    ("Humidity", "features_Humidity.csv", "sensor_hum"),
-    ("Motion", "features_Movement.csv", "sensor_motion"),
-    ("CO-Gas", "features_CO-GAS.csv", "sensor_co"),
-    ("Smoke", "features_Smoke.csv", "sensor_smoke"),
-    ("FanSpeed", "features_Fan_Speed.csv", "sensor_fanspeed"),
-    ("DoorLock", "features_Door_Lock.csv", "sensor_door"),
-    ("FanSensor", "features_Fan.csv", "sensor_fan"),
+    ("Temperature", "TemperatureMQTTset.csv", "sensor_temp"),
+    ("Light", "LightIntensityMQTTset.csv", "sensor_light"),
+    ("Humidity", "HumidityMQTTset.csv", "sensor_hum"),
+    ("Motion", "MotionMQTTset.csv", "sensor_motion"),
+    ("CO-Gas", "CO-GasMQTTset.csv", "sensor_co"),
+    ("Smoke", "SmokeMQTTset.csv", "sensor_smoke"),
+    ("FanSpeed", "FanSpeedControllerMQTTset.csv", "sensor_fanspeed"),
+    ("DoorLock", "DoorlockMQTTset.csv", "sensor_door"),
+    ("FanSensor", "FansensorMQTTset.csv", "sensor_fan"),
 ]
 
 def mk_client(cid, username=None):
@@ -24,46 +22,60 @@ def mk_client(cid, username=None):
 def device_thread(device_name, csv_path, broker, port, username=None, loop=True, publish_interval=None):
     topic = f"site/tenantA/home/{device_name}/telemetry"
     client = mk_client(f"{device_name}-replayer", username)
-    client.connect(broker, port, 60)
-    client.loop_start()
+    
+    connected = False
+    while not connected:
+        try:
+            client.connect(broker, port, 60)
+            client.loop_start()
+            connected = True
+            print(f"[{device_name}] connected to {broker}:{port}")
+        except Exception as e:
+            print(f"[{device_name}] connect failed, retrying in 5s: {e}")
+            time.sleep(5)
 
-    # read csv once into memory for simplicity
     rows = []
     with open(csv_path, newline='', encoding='utf-8') as f:
         r = csv.DictReader(f)
         for row in r:
-            rows.append(row)
+            if row.get('mqtt.msgtype') == '3':
+                rows.append(row)
 
     i = 0
     while True:
+        if not rows:
+            print(f"No valid MQTT data found in {csv_path}")
+            break
+            
         row = rows[i % len(rows)]
-        # use 'value' column or payload if exists
-        if 'payload' in row and row['payload']:
+        
+        tcp_payload = row.get('tcp.payload', '')
+        if tcp_payload:
             try:
-                payload = row['payload']
-                # ensure it's a JSON string
-                json.loads(payload)
+                payload_bytes = bytes.fromhex(tcp_payload)
+                if len(payload_bytes) > 10:
+                    payload_str = payload_bytes[10:].decode('utf-8', errors='ignore')
+                    if payload_str:
+                        payload = json.dumps({"value": payload_str.strip()})
+                    else:
+                        payload = json.dumps({"value": round(random.uniform(10, 100), 2)})
+                else:
+                    payload = json.dumps({"value": round(random.uniform(10, 100), 2)})
             except:
-                payload = json.dumps({"value": row.get('value','')})
+                payload = json.dumps({"value": round(random.uniform(10, 100), 2)})
         else:
-            try:
-                val = float(row.get('value','0'))
-                payload = json.dumps({"value": val})
-            except:
-                payload = json.dumps({"value": row.get('value','')})
+            payload = json.dumps({"value": round(random.uniform(10, 100), 2)})
 
         client.publish(topic, payload)
-        # wait: either use publish_interval param or use timestamp difference if present
         if publish_interval is not None:
             time.sleep(publish_interval)
         else:
-            # no given interval; sleep small random to avoid blast
             time.sleep(0.1 + random.random()*0.1)
         i += 1
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--indir", default="./datasets")
+    parser.add_argument("--indir", default=".")
     parser.add_argument("--broker", default="localhost")
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--publish-interval", type=float, help="fixed delay (s) between publishes per device")
