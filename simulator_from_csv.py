@@ -75,7 +75,7 @@ def device_thread(device_name, csv_path, broker, port, username=None, loop=True,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--indir", default=".")
+    parser.add_argument("--indir", default="datasets", help="folder containing device CSV files")
     parser.add_argument("--broker", default="localhost")
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--publish-interval", type=float, help="fixed delay (s) between publishes per device")
