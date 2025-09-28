@@ -1,367 +1,175 @@
-# IoT 9-Device MQTT Simulator
+﻿# Mô phỏng MQTT cho 9 thiết bị IoT
 
-## 📋 Tổng quan dự án
+Dự án này phát lại telemetry MQTT của chín thiết bị IoT từ các bản ghi CSV lịch sử. Ngoài ra, dự án còn cung cấp pipeline xử lý dữ liệu để quy đổi nhiều định dạng CSV khác nhau về cùng một schema chuẩn, giúp các bước tạo đặc trưng hoặc huấn luyện mô hình có thể tái sử dụng dễ dàng.
 
-Dự án giả lập 9 thiết bị IoT sử dụng MQTT protocol, replay traffic từ dataset CSV thực tế. Mỗi thiết bị có IP address riêng và gửi dữ liệu telemetry theo pattern từ dataset.
-
-### 🎯 Mục tiêu
-
-- Giả lập 9 thiết bị IoT với traffic thực từ dataset
-- Sử dụng MQTT protocol để giao tiếp
-- Replay dữ liệu từ CSV files theo đúng pattern
-- Infrastructure Docker để dễ deploy và test
-
-## 🏗️ Kiến trúc dự án
+## Cấu trúc thư mục
 
 ```
 Do An IA/
-├── simulator_from_csv.py          # Simulator chính
-├── feature_extract.py             # Extract features từ CSV
-├── requirements.txt               # Dependencies
-├── docker-compose.yml            # Docker infrastructure
-├── Dockerfile                    # Container config
-└── 9 file CSV dataset:
-    ├── TemperatureMQTTset.csv     # 192.168.0.151
-    ├── LightIntensityMQTTset.csv # 192.168.0.150
-    ├── HumidityMQTTset.csv       # 192.168.0.152
-    ├── MotionMQTTset.csv         # 192.168.0.154
-    ├── CO-GasMQTTset.csv         # 192.168.0.155
-    ├── SmokeMQTTset.csv          # 192.168.0.180
-    ├── FanSpeedControllerMQTTset.csv # 192.168.0.173
-    ├── DoorlockMQTTset.csv       # 192.168.0.176
-    └── FansensorMQTTset.csv      # 192.168.0.178
+  datasets/                     # Thư mục chứa toàn bộ file CSV thô
+    TemperatureMQTTset.csv
+    LightIntensityMQTTset.csv
+    ...
+  build_canonical_dataset.py    # Chuẩn hóa CSV về schema chuẩn
+  feature_extract.py            # Sinh đặc trưng phục vụ ML
+  simulator_from_csv.py         # Phát lại lưu lượng MQTT cho từng thiết bị
+  docker-compose.yml            # Stack EMQX + simulator (tùy chọn)
+  Dockerfile                    # Docker image cho simulator
+  requirements.txt              # Danh sách phụ thuộc Python
 ```
 
-## 🔧 Yêu cầu hệ thống
+> **Lưu ý**: hãy đặt mọi file dataset (*.csv) vào thư mục `datasets/` trước khi chạy các lệnh bên dưới.
 
-- Docker Desktop
-- Docker Compose
-- Python 3.11+ (nếu chạy trực tiếp)
+## Yêu cầu
 
-## 📁 Quản lý dữ liệu
+- Python 3.11 trở lên (chạy local)
+- Pip (hoặc công cụ quản lý package tương đương)
+- Tùy chọn: Docker Desktop + Docker Compose (chạy bằng container)
+- Bộ dataset CSV thô (TemperatureMQTTset.csv, LightIntensityMQTTset.csv, ...)
 
-### CSV Dataset Files
+## Quy trình nhanh (chạy Python local)
 
-- **Lưu ý**: Các file CSV dataset (~1.5GB) đã được exclude khỏi Git
-- **Lý do**: File quá lớn, không phù hợp cho Git repository
-- **Cách thêm**: Copy các file CSV vào thư mục dự án trước khi chạy
+1. Tạo môi trường ảo (khuyến nghị).
 
-### Git Setup
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate  # Windows PowerShell
+   # source .venv/bin/activate  # WSL/Linux/macOS
+   ```
+
+2. Cài đặt phụ thuộc.
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Gộp dữ liệu về schema chuẩn (mặc định đọc các CSV trong `datasets/`).
+
+   ```bash
+   python build_canonical_dataset.py --pattern "*MQTTset.csv" --output canonical_dataset.csv --chunksize 50000 --force
+   ```
+
+   Các tham số quan trọng:
+   - `--pattern`: chọn các file CSV cần gộp (có thể đổi thành `*.csv` nếu thư mục chỉ chứa dữ liệu IoT).
+   - `--protocols`: lọc theo danh sách giao thức IoT cho phép (mặc định đã gồm MQTT/MQTTS và nhiều giao thức IIoT phổ biến).
+
+4. Trích xuất đặc trưng phục vụ phân tích/ML.
+
+   ```bash
+   python feature_extract.py canonical_dataset.csv --out features_canonical_dataset.csv
+   ```
+
+   File đầu ra giữ lại các trường telemetry quan trọng (`timestamp`, `client_id`, QoS, thời gian giữa hai gói, độ dài payload, nhãn,...).
+
+5. Phát lại dữ liệu lên broker bằng script (tự tìm CSV trong `datasets/`).
+
+   ```bash
+   python simulator_from_csv.py --broker localhost --port 1883 --publish-interval 0.2
+   ```
+
+   Simulator sẽ publish lên các topic `site/tenantA/home/<device>/telemetry` với payload lấy từ dataset CSV.
+
+## Quy trình bằng Docker (EMQX + simulator)
+
+1. Build và khởi động stack (Dockerfile đã copy thư mục `datasets/` vào image).
+
+   ```bash
+   docker-compose up --build -d
+   ```
+
+   Lệnh trên sẽ:
+   - Build image `doania-simulator` (Python 3.11 + dependencies + folder datasets)
+   - Khởi động EMQX (broker) và container simulator
+
+2. Kiểm tra trạng thái container.
+
+   ```bash
+   docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+   ```
+
+   Bạn sẽ thấy `emqx` mở cổng 1883/18083 và `mqtt-simulator` đang chạy.
+
+3. Theo dõi log realtime.
+
+   ```bash
+   docker logs -f mqtt-simulator
+   # Hoặc chỉ xem 10 dòng cuối
+   docker logs --tail 10 mqtt-simulator
+   ```
+
+   Khi hoạt động ổn định, log sẽ báo tất cả 9 thiết bị kết nối tới EMQX.
+
+4. Truy cập EMQX Dashboard.
+   - URL: http://localhost:18083
+   - Đăng nhập mặc định (nếu chưa đổi): `admin` / `public`
+   - Theo dõi connections, throughput, subscriptions
+
+5. Dừng và dọn dẹp.
+
+   ```bash
+   docker-compose down
+   ```
+
+   Thêm `--volumes` nếu muốn xóa luôn dữ liệu/volume tạm.
+
+## Chi tiết xử lý dữ liệu
+
+### Schema chuẩn
+
+| Cột              | Mô tả                                             |
+|------------------|---------------------------------------------------|
+| `timestamp`      | Dấu thời gian ISO-8601 (UTC) cho từng gói tin      |
+| `src_ip`/`src_port` | IP/port nguồn                                   |
+| `dst_ip`/`dst_port` | IP/port đích (broker 1883/8883)                 |
+| `client_id`      | Định danh thiết bị (hợp nhất client_id/device_id) |
+| `topic`          | Topic publish                                     |
+| `topicfilter`    | Topic filter khi subscribe (nếu có)               |
+| `qos`            | Mức QoS của MQTT                                  |
+| `retain`         | Cờ retain (0/1)                                   |
+| `dupflag`        | Cờ duplicate (0/1)                                |
+| `payload_length` | Kích thước payload (byte hoặc độ dài chuỗi)       |
+| `Payload_sample` | Mẫu payload đã loại control char                  |
+| `packet_type`    | Loại gói MQTT (CONNECT, PUBLISH, SUBSCRIBE, ...)  |
+| `protocol`       | Tên giao thức chuẩn hóa                           |
+| `connack_code`   | Mã phản hồi CONNACK (nếu có)                      |
+| `Label`          | Nhãn hành vi (bình thường / kiểu tấn công / unknown) |
+| `username`       | Username dùng để xác thực                         |
+| `msgid`          | Message ID (QoS1/2)                               |
+| `auth_reason`    | Thông tin bổ sung về lý do auth/khóa              |
+
+`build_canonical_dataset.py` tự động:
+- Ghép các cột đồng nghĩa (`mqtt.clientid`, `device_id`, `mqtt.topic`, ...).
+- Chuẩn hóa thời gian sang UTC.
+- Giải mã payload hex thành đoạn text dễ đọc.
+- Lọc chỉ giữ các giao thức IoT trong danh sách cho phép.
+- Đọc file theo từng phần (chunk) để xử lý được dataset dung lượng lớn.
+
+### Trích xuất đặc trưng
+
+`feature_extract.py` nhận đầu vào là CSV theo schema chuẩn. Script sẽ:
+- Tách giá trị số từ payload khi có thể.
+- Tính thời gian giữa các gói liên tiếp theo từng `client_id`.
+- Giữ lại các cờ QoS/retain/dup và sự hiện diện của `msgid`.
+- Xuất kết quả thành `features_<input>.csv` (có thể đổi bằng `--out`).
+
+Kiểm tra nhanh file đặc trưng:
 
 ```bash
-# Clone repository
-git clone <your-repo-url>
-cd "Do An IA"
-
-# Copy CSV files vào thư mục (nếu chưa có)
-# TemperatureMQTTset.csv
-# LightIntensityMQTTset.csv
-# HumidityMQTTset.csv
-# MotionMQTTset.csv
-# CO-GasMQTTset.csv
-# SmokeMQTTset.csv
-# FanSpeedControllerMQTTset.csv
-# DoorlockMQTTset.csv
-# FansensorMQTTset.csv
-
-# Chạy dự án
-docker-compose up -d
+python - <<"PY"
+import pandas as pd
+print(pd.read_csv("features_canonical_dataset.csv", nrows=5))
+PY
 ```
 
-## 🚀 Hướng dẫn chạy dự án
+## Xử lý sự cố thường gặp
 
-### Phương pháp 1: Docker (Khuyến nghị)
+- **Thiếu pandas**: chạy `pip install -r requirements.txt` (tool cần pandas >= 2.0).
+- **File đầu ra rỗng**: kiểm tra pattern `--pattern` và giao thức có nằm trong danh sách cho phép.
+- **Không kết nối được broker**: đảm bảo EMQX hoặc Mosquitto đang chạy đúng host/port.
+- **Trùng port Docker**: chỉnh lại port trong `docker-compose.yml` nếu 1883/18083 đã bị dùng.
 
-#### Bước 1: Kiểm tra Docker
+## Hướng phát triển tiếp
 
-```bash
-docker --version
-docker-compose --version
-```
-
-#### Bước 2: Clone/Navigate đến thư mục dự án
-
-```bash
-cd "C:\Users\Admin\Desktop\Do An IA"
-```
-
-#### Bước 3: Chạy dự án
-
-```bash
-# Build và chạy containers
-docker-compose up --build -d
-
-# Kiểm tra trạng thái
-docker ps
-```
-
-#### Bước 4: Kiểm tra logs
-
-```bash
-# Xem logs simulator
-docker logs mqtt-simulator
-
-# Xem logs realtime
-docker logs mqtt-simulator -f
-```
-
-#### Bước 5: Truy cập EMQX Dashboard
-
-- URL: http://localhost:18083
-- Xem kết nối MQTT và traffic realtime
-
-### Phương pháp 2: Python trực tiếp
-
-#### Bước 1: Cài đặt MQTT Broker
-
-```bash
-# Cài EMQX hoặc Mosquitto
-# Windows: choco install mosquitto
-# Hoặc tải từ: https://www.emqx.io/downloads
-```
-
-#### Bước 2: Cài dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-#### Bước 3: Chạy simulator
-
-```bash
-python simulator_from_csv.py --broker localhost --port 1883
-```
-
-## 📊 Monitoring và Test
-
-### 1. Kiểm tra kết nối thiết bị
-
-```bash
-# Xem tất cả containers
-docker ps
-
-# Xem logs chi tiết
-docker logs mqtt-simulator --tail 50
-```
-
-### 2. EMQX Dashboard
-
-- **URL**: http://localhost:18083
-- **Features**:
-  - Xem clients kết nối
-  - Monitor MQTT messages
-  - Xem topics và subscriptions
-  - Real-time traffic analysis
-
-### 3. Test MQTT Client
-
-```bash
-# Cài MQTT client (optional)
-pip install paho-mqtt
-
-# Subscribe để test
-python -c "
-import paho.mqtt.client as mqtt
-def on_message(client, userdata, message):
-    print(f'Topic: {message.topic}, Payload: {message.payload.decode()}')
-client = mqtt.Client()
-client.on_message = on_message
-client.connect('localhost', 1883)
-client.subscribe('site/tenantA/home/+/telemetry')
-client.loop_forever()
-"
-```
-
-## 🔍 Chi tiết kỹ thuật
-
-### 9 Thiết bị IoT
-
-| Thiết bị    | IP Address    | CSV File                      | Username        | Topic                                   |
-| ----------- | ------------- | ----------------------------- | --------------- | --------------------------------------- |
-| Temperature | 192.168.0.151 | TemperatureMQTTset.csv        | sensor_temp     | site/tenantA/home/Temperature/telemetry |
-| Light       | 192.168.0.150 | LightIntensityMQTTset.csv     | sensor_light    | site/tenantA/home/Light/telemetry       |
-| Humidity    | 192.168.0.152 | HumidityMQTTset.csv           | sensor_hum      | site/tenantA/home/Humidity/telemetry    |
-| Motion      | 192.168.0.154 | MotionMQTTset.csv             | sensor_motion   | site/tenantA/home/Motion/telemetry      |
-| CO-Gas      | 192.168.0.155 | CO-GasMQTTset.csv             | sensor_co       | site/tenantA/home/CO-Gas/telemetry      |
-| Smoke       | 192.168.0.180 | SmokeMQTTset.csv              | sensor_smoke    | site/tenantA/home/Smoke/telemetry       |
-| FanSpeed    | 192.168.0.173 | FanSpeedControllerMQTTset.csv | sensor_fanspeed | site/tenantA/home/FanSpeed/telemetry    |
-| DoorLock    | 192.168.0.176 | DoorlockMQTTset.csv           | sensor_door     | site/tenantA/home/DoorLock/telemetry    |
-| FanSensor   | 192.168.0.178 | FansensorMQTTset.csv          | sensor_fan      | site/tenantA/home/FanSensor/telemetry   |
-
-### Flow hoạt động
-
-1. **Khởi tạo**: 9 threads cho 9 thiết bị
-2. **Kết nối**: Mỗi thiết bị kết nối đến EMQX broker
-3. **Đọc CSV**: Parse MQTT data từ CSV files
-4. **Replay**: Gửi MQTT messages theo pattern từ dataset
-5. **Retry**: Tự động retry khi mất kết nối
-
-### Cấu trúc MQTT Message
-
-```json
-{
-  "topic": "site/tenantA/home/{device_name}/telemetry",
-  "payload": {
-    "value": "extracted_from_csv_data"
-  },
-  "qos": 0,
-  "retain": false
-}
-```
-
-## 🛠️ Troubleshooting
-
-### Lỗi thường gặp
-
-#### 1. Connection refused
-
-```bash
-# Kiểm tra EMQX có chạy không
-docker logs emqx
-
-# Restart containers
-docker-compose restart
-```
-
-#### 2. Không có data
-
-```bash
-# Kiểm tra CSV files
-ls -la *.csv
-
-# Kiểm tra logs simulator
-docker logs mqtt-simulator
-```
-
-#### 3. Port conflicts
-
-```bash
-# Kiểm tra port đang sử dụng
-netstat -an | findstr 1883
-netstat -an | findstr 18083
-
-# Thay đổi port trong docker-compose.yml nếu cần
-```
-
-#### 4. Topics/Subscriptions = 0
-
-```bash
-# Đây là bình thường! Lý do:
-# - Topics = 0: EMQX không tự động tạo topic entries
-# - Subscriptions = 0: Không có client subscribe
-
-# Để test messages, chạy:
-docker exec mqtt-simulator python -c "
-import paho.mqtt.client as mqtt
-import time
-def on_message(client, userdata, message):
-    print(f'Received: {message.topic} -> {message.payload.decode()}')
-client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1)
-client.on_message = on_message
-client.connect('emqx', 1883)
-client.subscribe('site/tenantA/home/+/telemetry')
-client.loop_start()
-time.sleep(5)
-client.loop_stop()
-"
-```
-
-### Commands hữu ích
-
-```bash
-# Dừng dự án
-docker-compose down
-
-# Restart dự án
-docker-compose restart
-
-# Xem logs tất cả services
-docker-compose logs
-
-# Clean up (xóa containers và images)
-docker-compose down --rmi all --volumes --remove-orphans
-```
-
-## 📈 Kết quả mong đợi
-
-### Khi chạy thành công, bạn sẽ thấy:
-
-1. **9 thiết bị kết nối**:
-
-```
-[Temperature] connected to emqx:1883
-[Light] connected to emqx:1883
-[Humidity] connected to emqx:1883
-[Motion] connected to emqx:1883
-[CO-Gas] connected to emqx:1883
-[Smoke] connected to emqx:1883
-[FanSpeed] connected to emqx:1883
-[DoorLock] connected to emqx:1883
-[FanSensor] connected to emqx:1883
-```
-
-2. **EMQX Dashboard** hiển thị:
-
-   - **Connections**: 9 clients kết nối
-   - **Incoming Rate**: ~59 messages/sec
-   - **Topics/Subscriptions**: 0 (bình thường vì chỉ có publishers)
-
-3. **MQTT Messages** được gửi liên tục theo pattern từ CSV:
-
-   - JSON payload format: `{"value": "extracted_data"}`
-   - Real-time data từ CSV files
-   - 9 topics hoạt động: `site/tenantA/home/{device}/telemetry`
-
-4. **Test Messages** có thể subscribe để xem:
-   - Temperature: "ature125", "ature106", etc.
-   - Light: "Intensity0", "Intensity1"
-   - Humidity: "ty57", "ty19", etc.
-   - Motion: "nt2", "nt0", "nt1"
-   - CO-Gas: "280", "334", "15", etc.
-   - Smoke: 42.29, 67.21, 41.35, etc.
-   - FanSpeed: "eed1", "eed0"
-   - DoorLock: "ock0"
-   - FanSensor: 42.71, 89.05, 49.6, etc.
-
-## 🎯 Demo cho Mentor
-
-### 1. Khởi động dự án
-
-```bash
-docker-compose up -d
-```
-
-### 2. Mở EMQX Dashboard
-
-- URL: http://localhost:18083
-- Show: Clients, Topics, Messages
-
-### 3. Monitor logs
-
-```bash
-docker logs mqtt-simulator -f
-```
-
-### 4. Test MQTT client
-
-- Subscribe to topics
-- Show real-time data flow
-
-### 5. Dừng dự án
-
-```bash
-docker-compose down
-```
-
-## 📝 Kết luận
-
-Dự án đã hoàn thành với:
-
-- ✅ 9 thiết bị IoT giả lập
-- ✅ MQTT protocol implementation
-- ✅ CSV data replay
-- ✅ Docker infrastructure
-- ✅ Monitoring dashboard
-- ✅ Retry logic và error handling
-
-**Dự án sẵn sàng để demo và phát triển thêm!** 🚀
+- Dùng `features_canonical_dataset.csv` để phân tích hoặc huấn luyện mô hình.
+- Bổ sung alias mới vào `build_canonical_dataset.py` khi nhập thêm bộ dữ liệu khác.
+- Tùy biến tần suất publish của simulator bằng `--publish-interval` để phục vụ test tải.

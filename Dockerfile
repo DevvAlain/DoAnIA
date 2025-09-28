@@ -3,15 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY simulator_from_csv.py /app/simulator_from_csv.py
-COPY TemperatureMQTTset.csv /app/
-COPY LightIntensityMQTTset.csv /app/
-COPY HumidityMQTTset.csv /app/
-COPY MotionMQTTset.csv /app/
-COPY CO-GasMQTTset.csv /app/
-COPY SmokeMQTTset.csv /app/
-COPY FanSpeedControllerMQTTset.csv /app/
-COPY DoorlockMQTTset.csv /app/
-COPY FansensorMQTTset.csv /app/
+COPY datasets/ /app/datasets/
 COPY requirements.txt /app/requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
