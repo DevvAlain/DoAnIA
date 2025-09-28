@@ -6,81 +6,24 @@ services:
     container_name: emqx
     restart: unless-stopped
     ports:
-      - "1883:1883" # MQTT
-      - "18083:18083" # EMQX dashboard (HTTP)
-      - "8083:8083" # MQTT over WebSocket
+      - "1883:1883"
+      - "18083:18083"
     environment:
-      - EMQX_NAME=emqx
       - EMQX_ALLOW_ANONYMOUS=true
     networks:
       - iot-net
 
-  influxdb:
-    image: influxdb:2.7
-    container_name: influxdb
-    restart: unless-stopped
-    ports:
-      - "8086:8086"
-    environment:
-      # init mode sets up org, bucket and token automatically on first start
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=3Qhybz35XcyLN61DVo7J8wB-00wJnlIMf8Ks2rlUpV1zBL6iiW0L-mOiDlde4dsSj-yPFk0Ft3ezTQKTPcrq9w==
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpass
-      - DOCKER_INFLUXDB_INIT_ORG=myorg
-      - DOCKER_INFLUXDB_INIT_BUCKET=iotdata
-    volumes:
-      - influxdb-data:/var/lib/influxdb2
-    networks:
-      - iot-net
-
-  grafana:
-    image: grafana/grafana:9.4.7
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    depends_on:
-      - influxdb
-    volumes:
-      - grafana-data:/var/lib/grafana
-    networks:
-      - iot-net
-
-  telegraf:
-    image: telegraf:1.26
-    container_name: telegraf
-    restart: unless-stopped
-    depends_on:
-      - emqx
-      - influxdb
-    volumes:
-      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
-    networks:
-      - iot-net
-
   simulator:
-    build:
-      context: .
-      dockerfile: ./Dockerfile
+    build: .
     container_name: mqtt-simulator
     restart: unless-stopped
     depends_on:
       - emqx
     environment:
-      # configure the simulator to reach the broker via Docker network name 'emqx'
       - BROKER_HOST=emqx
       - BROKER_PORT=1883
-      - ENABLE_ATTACKS=false # set to "true" to enable demo attack patterns
     networks:
       - iot-net
-
-volumes:
-  influxdb-data:
-  grafana-data:
 
 networks:
   iot-net:
