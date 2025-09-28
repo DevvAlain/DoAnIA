@@ -173,3 +173,15 @@ PY
 - Dùng `features_canonical_dataset.csv` để phân tích hoặc huấn luyện mô hình.
 - Bổ sung alias mới vào `build_canonical_dataset.py` khi nhập thêm bộ dữ liệu khác.
 - Tùy biến tần suất publish của simulator bằng `--publish-interval` để phục vụ test tải.
+
+
+
+## Lưu ý Git (không push file docs)
+
+- Muốn giữ lại thay đổi docx ở local mà không đẩy lên remote, dùng: `git update-index --skip-worktree "Idea Final.docx" "Huong_dan_demo_IoT_MQTT.docx"`.
+- Khi cần push lại hai file này, bỏ cờ skip bằng: `git update-index --no-skip-worktree "Idea Final.docx" "Huong_dan_demo_IoT_MQTT.docx"`.
+## Attack simulation scripts
+
+- `script_flood.py`: spawn multiple attacker clients that publish at a fixed rate to stress the broker. Example: `python script_flood.py --broker localhost --clients 50 --msg-rate 200 --topic-template "factory/{client}/telemetry" --log-csv flood.csv`.
+- `script_wildcard.py`: connect a listener client and subscribe to broad wildcard filters (including `$SYS/#`) to validate detection of unauthorized eavesdropping. Example: `python script_wildcard.py --broker localhost --topics "#" "$SYS/#" "factory/+/+/#" --log-csv wildcard.csv`.
+- `script_bruteforce.py`: iterate through hundreds of topic names (or load from file) to trigger subscribe brute-force rules while logging SUBACK responses. Example: `python script_bruteforce.py --broker localhost --topic-count 500 --rate 20 --rotate-every 100 --log-csv brute.csv`.
