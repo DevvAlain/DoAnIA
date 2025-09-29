@@ -1,4 +1,4 @@
-﻿# 🏭 IoT MQTT Security Research Platform
+# 🏭 IoT MQTT Security Research Platform
 
 Dự án nghiên cứu bảo mật MQTT IoT bao gồm:
 
