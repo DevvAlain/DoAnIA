@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Normalize heterogeneous MQTT/IoT CSV exports into a canonical schema."""
-
 import argparse
 import sys
 from pathlib import Path
@@ -97,45 +94,15 @@ TRUTHY_VALUES = {"true", "1", "yes", "y", "t"}
 HEX_DIGITS = set("0123456789abcdefABCDEF")
 PRINTABLE_SAFE = set(string.printable) - {"\t", "\r", "\n", "\x0b", "\x0c"}
 
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Merge CSV exports into the canonical IoT telemetry schema."
-    )
-    parser.add_argument(
-        "inputs",
-        nargs="*",
-        default=["datasets"],
-        help="Input CSV files or directories containing CSV files.",
-    )
-    parser.add_argument(
-        "--pattern",
-        default="*.csv",
-        help="Glob pattern to use when a directory input is supplied (default: *.csv).",
-    )
-    parser.add_argument(
-        "--output",
-        default="canonical_dataset.csv",
-        help="Output CSV path (default: canonical_dataset.csv).",
-    )
-    parser.add_argument(
-        "--chunksize",
-        type=int,
-        default=50000,
-        help="Number of rows per chunk when streaming large files (default: 50000).",
-    )
-    parser.add_argument(
-        "--protocols",
-        default="MQTT,MQTTS,MQTT-TLS,AMQP,AMQPS,COAP,COAPS,DDS,HTTP,HTTPS,MODBUS,MODBUS-TCP,BACNET,BACNET/IP,OPC-UA,OPCUA,ZIGBEE,Z-WAVE,ZWAVE,LORAWAN,NB-IOT,BLE,BLUETOOTH,BLUETOOTH-LE",
-        help="Comma separated list of allowed IoT protocols (case-insensitive).",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite the output file if it already exists.",
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("inputs", nargs="*", default=["datasets"])
+    parser.add_argument("--pattern", default="*.csv")
+    parser.add_argument("--output", default="canonical_dataset.csv")
+    parser.add_argument("--chunksize", type=int, default=50000)
+    parser.add_argument("--protocols", default="MQTT,MQTTS,MQTT-TLS,AMQP,AMQPS,COAP,COAPS,DDS,HTTP,HTTPS,MODBUS,MODBUS-TCP,BACNET,BACNET/IP,OPC-UA,OPCUA,ZIGBEE,Z-WAVE,ZWAVE,LORAWAN,NB-IOT,BLE,BLUETOOTH,BLUETOOTH-LE")
+    parser.add_argument("--force", action="store_true")
     return parser.parse_args()
-
 
 def collect_input_paths(raw_inputs: Sequence[str], pattern: str) -> List[Path]:
     collected: List[Path] = []
@@ -155,13 +122,11 @@ def collect_input_paths(raw_inputs: Sequence[str], pattern: str) -> List[Path]:
             seen.add(item)
     return unique
 
-
 def pick_series(frame: pd.DataFrame, candidates: Iterable[str]) -> pd.Series | None:
     for name in candidates:
         if name in frame.columns:
             return frame[name]
     return None
-
 
 def parse_timestamp(frame: pd.DataFrame) -> pd.Series | None:
     series = pick_series(frame, TIMESTAMP_CANDIDATES)
@@ -175,13 +140,11 @@ def parse_timestamp(frame: pd.DataFrame) -> pd.Series | None:
         dt = dt.fillna(dt_alt)
     return dt
 
-
 def format_timestamp(ts: pd.Series | None, frame_length: int) -> pd.Series:
     if ts is None:
         return pd.Series(["" for _ in range(frame_length)], dtype="object")
     formatted = ts.dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     return formatted.where(~ts.isna(), "")
-
 
 def string_series(frame: pd.DataFrame, candidates: Iterable[str], default: str = "") -> pd.Series:
     series = pick_series(frame, candidates)
@@ -189,14 +152,12 @@ def string_series(frame: pd.DataFrame, candidates: Iterable[str], default: str =
         return pd.Series([default for _ in range(len(frame))], index=frame.index, dtype="object")
     return series.fillna("").astype(str).str.strip()
 
-
 def bool_flag_series(frame: pd.DataFrame, candidates: Iterable[str]) -> pd.Series:
     series = pick_series(frame, candidates)
     if series is None:
         return pd.Series(0, index=frame.index, dtype="int64")
     cleaned = series.fillna("").astype(str).str.strip().str.lower()
     return cleaned.isin(TRUTHY_VALUES).astype("int64")
-
 
 def numeric_series(
     frame: pd.DataFrame,
@@ -216,7 +177,6 @@ def numeric_series(
     fill_value = 0 if default is None else default
     return numeric.fillna(fill_value).astype("Int64")
 
-
 def determine_protocol(frame: pd.DataFrame) -> pd.Series:
     series = pick_series(frame, PROTOCOL_CANDIDATES)
     if series is None:
@@ -233,14 +193,12 @@ def determine_protocol(frame: pd.DataFrame) -> pd.Series:
         cleaned = cleaned.where(cleaned != "UNKNOWN", "MQTT")
     return cleaned
 
-
 def sanitize_text(value: str, limit: int = 120) -> str:
     if not value:
         return ""
     filtered = ''.join(ch for ch in str(value) if ch in PRINTABLE_SAFE)
     cleaned = ' '.join(filtered.split())
     return cleaned[:limit]
-
 
 def decode_hex_payload(value: str, limit: int = 120) -> str:
     text = str(value).strip()
@@ -260,7 +218,6 @@ def decode_hex_payload(value: str, limit: int = 120) -> str:
         return raw[:limit].hex()
     return sanitize_text(text, limit)
 
-
 def hex_length(value: str) -> int:
     text = str(value).strip()
     if not text:
@@ -269,7 +226,6 @@ def hex_length(value: str) -> int:
     if candidate and all(ch in HEX_DIGITS for ch in candidate):
         return len(candidate) // 2
     return len(text)
-
 
 def compute_payload_length(frame: pd.DataFrame) -> pd.Series:
     series = pick_series(frame, PAYLOAD_LENGTH_CANDIDATES)
@@ -293,7 +249,6 @@ def compute_payload_length(frame: pd.DataFrame) -> pd.Series:
         return numeric.astype("Int64")
     return pd.Series(pd.NA, index=frame.index, dtype="Int64")
 
-
 def build_payload_sample(row: pd.Series) -> str:
     for column, treat_as_hex in PAYLOAD_PRIORITY:
         if column not in row:
@@ -312,7 +267,6 @@ def build_payload_sample(row: pd.Series) -> str:
             return decoded
     return ""
 
-
 def map_packet_type(frame: pd.DataFrame) -> pd.Series:
     series = pick_series(frame, PACKET_TYPE_CANDIDATES)
     if series is None:
@@ -322,7 +276,6 @@ def map_packet_type(frame: pd.DataFrame) -> pd.Series:
     mapped = numeric.map(MQTT_MSGTYPE_MAP)
     fallback = raw.str.upper().replace("", "UNKNOWN")
     return mapped.fillna(fallback)
-
 
 def canonicalize_chunk(
     chunk: pd.DataFrame,
@@ -395,7 +348,6 @@ def canonicalize_chunk(
 
     return df[CANONICAL_COLUMNS]
 
-
 def process_files(
     input_paths: Sequence[Path],
     output_path: Path,
@@ -427,7 +379,6 @@ def process_files(
             total_rows += len(canonical)
         print(f"[info] Processed {path} -> {total_rows} rows cumulative", file=sys.stderr)
     return total_rows
-
 
 def main() -> None:
     args = parse_args()
@@ -461,7 +412,6 @@ def main() -> None:
         print("[warn] No rows written to output after filtering", file=sys.stderr)
     else:
         print(f"[done] Wrote {total_rows} rows to {output_path}")
-
 
 if __name__ == "__main__":
     main()

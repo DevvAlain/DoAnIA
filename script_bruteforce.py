@@ -9,14 +9,12 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
-
 def load_topics(args):
     if args.topics_file:
         with open(args.topics_file, "r", encoding="utf-8") as handle:
             topics = [line.strip() for line in handle.readlines() if line.strip()]
         return topics
     return [args.topic_template.format(i=i) for i in range(args.topic_count)]
-
 
 class BruteForceSession:
     def __init__(self, args, topics):
@@ -64,13 +62,13 @@ class BruteForceSession:
         client.on_message = self.on_message
         return client, client_id
 
-    def on_connect(self, client, userdata, flags, rc):  # pragma: no cover - network specific
+    def on_connect(self, client, userdata, flags, rc):
         print(f"[connect] client={client._client_id.decode()} rc={rc}")
 
-    def on_disconnect(self, client, userdata, rc):  # pragma: no cover - network specific
+    def on_disconnect(self, client, userdata, rc):
         print(f"[disconnect] client={client._client_id.decode()} rc={rc}")
 
-    def on_subscribe(self, client, userdata, mid, granted_qos):  # pragma: no cover - network specific
+    def on_subscribe(self, client, userdata, mid, granted_qos):
         info = self.pending.pop(mid, None)
         qos_display = ",".join(str(q) for q in granted_qos)
         if not info:
@@ -84,7 +82,7 @@ class BruteForceSession:
         print(f"[suback] client={client_id} topic={topic} status={status} qos={qos_display}")
         self.log("suback", client_id, topic, status, detail, started)
 
-    def on_message(self, client, userdata, msg):  # pragma: no cover - network specific
+    def on_message(self, client, userdata, msg):
         client_id = client._client_id.decode()
         preview = msg.payload[:64]
         try:
@@ -93,7 +91,6 @@ class BruteForceSession:
             payload_text = str(preview)
         print(f"[message] client={client_id} topic={msg.topic} len={len(msg.payload)}")
         self.log("message", client_id, msg.topic, "received", payload_text)
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT subscribe brute-force simulator")
@@ -133,7 +130,7 @@ def main():
         current_client, current_client_id = session.create_client(client_seq)
         try:
             current_client.connect(args.broker, args.port, args.keepalive)
-        except Exception as exc:  # pragma: no cover - network specific
+        except Exception as exc:
             print(f"failed to connect {current_client_id}: {exc}")
             return False
         current_client.loop_start()
@@ -171,7 +168,6 @@ def main():
         current_client.loop_stop()
         current_client.disconnect()
     session.close()
-
 
 if __name__ == "__main__":
     main()

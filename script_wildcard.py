@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
-
 class WildcardSession:
     def __init__(self, args):
         self.args = args
@@ -39,7 +38,7 @@ class WildcardSession:
         with self.log_lock:
             self.log_writer.writerow([datetime.now(timezone.utc).isoformat(), event, topic, payload, details])
 
-    def on_connect(self, client, userdata, flags, rc):  # pragma: no cover - network specific
+    def on_connect(self, client, userdata, flags, rc):
         print(f"[connect] rc={rc}")
         if rc != 0:
             return
@@ -47,15 +46,15 @@ class WildcardSession:
             client.subscribe(topic, qos=self.args.qos)
             print(f"[subscribe] requested {topic} qos={self.args.qos}")
 
-    def on_disconnect(self, client, userdata, rc):  # pragma: no cover - network specific
+    def on_disconnect(self, client, userdata, rc):
         print(f"[disconnect] rc={rc}")
 
-    def on_subscribe(self, client, userdata, mid, granted_qos):  # pragma: no cover - network specific
+    def on_subscribe(self, client, userdata, mid, granted_qos):
         detail = ",".join(str(q) for q in granted_qos)
         print(f"[suback] mid={mid} qos={detail}")
         self.log("suback", "", "", detail)
 
-    def on_message(self, client, userdata, msg):  # pragma: no cover - network specific
+    def on_message(self, client, userdata, msg):
         payload_preview = msg.payload[:64]
         try:
             payload_text = payload_preview.decode("utf-8", errors="replace")
@@ -71,7 +70,6 @@ class WildcardSession:
             for topic in self.args.topics:
                 client.subscribe(topic, qos=self.args.qos)
                 print(f"[resubscribe] {topic}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="Wildcard subscription abuse simulator")
@@ -101,7 +99,7 @@ def main():
 
     try:
         client.connect(args.broker, args.port, args.keepalive)
-    except Exception as exc:  # pragma: no cover - network specific
+    except Exception as exc:
         print(f"failed to connect: {exc}")
         session.close()
         return
@@ -124,7 +122,6 @@ def main():
     client.loop_stop()
     client.disconnect()
     session.close()
-
 
 if __name__ == "__main__":
     main()

