@@ -11,12 +11,10 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
-
 def build_payload(size: int) -> bytes:
     alphabet = string.ascii_letters + string.digits
     body = ''.join(random.choice(alphabet) for _ in range(size))
     return body.encode("utf-8")
-
 
 def ensure_connection(client: mqtt.Client, broker: str, port: int, keepalive: int, retry_delay: float, stop_event: threading.Event) -> bool:
     while not stop_event.is_set():
@@ -24,11 +22,10 @@ def ensure_connection(client: mqtt.Client, broker: str, port: int, keepalive: in
             client.connect(broker, port, keepalive)
             client.loop_start()
             return True
-        except Exception as exc:  # pragma: no cover - network specific
+        except Exception as exc:
             print(f"[connect] failed: {exc}. retrying in {retry_delay}s")
             time.sleep(retry_delay)
     return False
-
 
 def publish_worker(worker_id: int, args, stop_event: threading.Event, log_writer, log_lock: threading.Lock):
     client_id = f"{args.client_prefix}{worker_id:03d}"
@@ -66,7 +63,6 @@ def publish_worker(worker_id: int, args, stop_event: threading.Event, log_writer
         client.loop_stop()
         client.disconnect()
 
-
 def prep_log(path: str):
     if not path:
         return None, None
@@ -76,7 +72,6 @@ def prep_log(path: str):
     if not exists:
         writer.writerow(["timestamp_utc", "client_id", "topic", "mid", "result"])
     return writer, fh
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT publish flood simulator")
@@ -125,7 +120,6 @@ def main():
     if log_handle:
         log_handle.flush()
         log_handle.close()
-
 
 if __name__ == "__main__":
     main()

@@ -6,6 +6,7 @@ Dự án nghiên cứu bảo mật MQTT IoT bao gồm:
 - 📡 **IoT Simulators**: Mô phỏng 9 thiết bị IoT với payload chuẩn
 - ⚔️ **Attack Scripts**: 9 kịch bản tấn công MQTT để kiểm tra bảo mật
 - 🔬 **Analysis Tools**: Trích xuất đặc trưng và phân tích dữ liệu
+- ✨ **Production Ready**: Code đã được optimize, xóa sạch comment
 
 ## 📁 Cấu trúc dự án
 

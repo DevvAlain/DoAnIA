@@ -1,14 +1,8 @@
-"""
-Unified MQTT IoT Simulator
-Kết hợp chức năng của enhanced_simulator.py và simulator_from_csv.py
-"""
-
 import argparse, threading, time, os, json, csv
 import paho.mqtt.client as mqtt
 import random
 from datetime import datetime
 
-# Enhanced simulator configurations cho payload chuẩn IoT
 DEVICE_CONFIGS = {
     "Temperature": {
         "csv_file": "TemperatureMQTTset.csv",
@@ -101,7 +95,6 @@ DEVICE_CONFIGS = {
     }
 }
 
-# Legacy mapping for backward compatibility
 LEGACY_DEVICES = [
     ("Temperature", "TemperatureMQTTset.csv", "sensor_temp"),
     ("Light", "LightIntensityMQTTset.csv", "sensor_light"),
@@ -121,7 +114,6 @@ def mk_client(cid, username=None):
     return c
 
 def enhanced_device_thread(device_name, config, broker, port, username=None, loop=True, publish_interval=None):
-    """Enhanced mode: Generate realistic IoT payloads"""
     
     connected = False
     retry_count = 0
@@ -149,7 +141,6 @@ def enhanced_device_thread(device_name, config, broker, port, username=None, loo
             connected = True
             print(f"[Enhanced] {device_name}: connected {config['device_count']} devices to {broker}:{port}")
             
-            # Publishing loop
             while loop:
                 for client_info in clients:
                     try:
@@ -180,7 +171,6 @@ def enhanced_device_thread(device_name, config, broker, port, username=None, loo
         print(f"[Enhanced] {device_name} failed to connect after {max_retries} attempts")
 
 def legacy_device_thread(device_name, csv_path, broker, port, username=None, loop=True, publish_interval=None):
-    """Legacy mode: Replay from CSV data"""
     
     topic = f"site/tenantA/home/{device_name}/telemetry"
     client = mk_client(f"{device_name}-replayer", username)
@@ -196,7 +186,6 @@ def legacy_device_thread(device_name, csv_path, broker, port, username=None, loo
             print(f"[Legacy] {device_name} connect failed, retrying in 5s: {e}")
             time.sleep(5)
 
-    # Load CSV data
     rows = []
     try:
         with open(csv_path, newline='', encoding='utf-8') as f:
@@ -216,7 +205,6 @@ def legacy_device_thread(device_name, csv_path, broker, port, username=None, loo
             
         row = rows[i % len(rows)]
         
-        # Process payload (improved from original)
         tcp_payload = row.get('tcp.payload', '')
         if tcp_payload:
             try:
@@ -224,7 +212,6 @@ def legacy_device_thread(device_name, csv_path, broker, port, username=None, loo
                 if len(payload_bytes) > 10:
                     payload_str = payload_bytes[10:].decode('utf-8', errors='ignore')
                     if payload_str.strip().replace('-', '').replace('.', '').isdigit():
-                        # If it looks like a number, convert it
                         try:
                             value = float(payload_str.strip())
                             payload = json.dumps({"value": value, "source": "csv_replay"})
@@ -252,19 +239,16 @@ def legacy_device_thread(device_name, csv_path, broker, port, username=None, loo
 def main():
     parser = argparse.ArgumentParser(description="Unified MQTT IoT Simulator")
     
-    # Connection parameters
     parser.add_argument("--broker", default="localhost", help="MQTT broker address")
     parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
     parser.add_argument("--publish-interval", type=float, help="Fixed delay (s) between publishes")
     
-    # Mode selection
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument("--enhanced", action="store_true", default=True, 
                            help="Use enhanced mode with realistic IoT payloads (default)")
     mode_group.add_argument("--legacy", action="store_true", 
                            help="Use legacy mode replaying from CSV data")
     
-    # Device selection
     parser.add_argument("--devices", nargs="+", 
                        help="Specific devices to simulate (enhanced mode) or device names (legacy)")
     parser.add_argument("--indir", default="datasets", 
@@ -272,7 +256,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Determine mode
     if args.legacy:
         mode = "legacy"
         print(f"🔄 LEGACY MODE: Replaying from CSV data")
@@ -286,7 +269,6 @@ def main():
     threads = []
     
     if mode == "enhanced":
-        # Enhanced mode
         devices_to_run = args.devices if args.devices else list(DEVICE_CONFIGS.keys())
         
         print(f"📡 Starting {len(devices_to_run)} enhanced device simulators:")
@@ -312,10 +294,8 @@ def main():
             time.sleep(0.5)
     
     else:
-        # Legacy mode
         devices_to_run = LEGACY_DEVICES
         if args.devices:
-            # Filter by specified devices
             device_names = [d.lower() for d in args.devices]
             devices_to_run = [(name, fname, username) for name, fname, username in LEGACY_DEVICES 
                             if name.lower() in device_names]

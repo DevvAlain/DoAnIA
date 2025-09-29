@@ -1,7 +1,3 @@
-"""
-MQTT Subscriber để test và verify payload format
-"""
-
 import paho.mqtt.client as mqtt
 import json
 import argparse
@@ -15,7 +11,6 @@ class MQTTSubscriber:
         self.client = mqtt.Client(client_id="test_subscriber_001")
         self.message_count = 0
         
-        # Set up callbacks
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         self.client.on_disconnect = self.on_disconnect
@@ -25,7 +20,6 @@ class MQTTSubscriber:
             print(f"✅ Connected to {self.broker}:{self.port}")
             print(f"📡 Subscribing to {len(self.topics)} topics...")
             
-            # Subscribe to all topics
             for topic in self.topics:
                 result, mid = client.subscribe(topic, qos=0)
                 if result == mqtt.MQTT_ERR_SUCCESS:
@@ -42,11 +36,9 @@ class MQTTSubscriber:
         topic = msg.topic
         
         try:
-            # Try to parse as JSON
             payload = json.loads(msg.payload.decode('utf-8'))
             payload_str = json.dumps(payload, indent=2) if len(str(payload)) > 100 else str(payload)
         except:
-            # If not JSON, show raw payload  
             payload_str = msg.payload.decode('utf-8', errors='ignore')
         
         print(f"[{timestamp}] #{self.message_count}")
@@ -62,7 +54,6 @@ class MQTTSubscriber:
             print("👋 Disconnected gracefully")
     
     def start(self):
-        """Start the subscriber"""
         print(f"🚀 Starting MQTT Subscriber...")
         print(f"🎯 Broker: {self.broker}:{self.port}")
         print(f"📋 Topics: {', '.join(self.topics)}")
@@ -82,7 +73,6 @@ def main():
     parser.add_argument("--broker", default="localhost", help="MQTT broker address")
     parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
     
-    # Topic options
     parser.add_argument("--topics", nargs="+", help="Specific topics to subscribe to")
     parser.add_argument("--all-zones", action="store_true", help="Subscribe to all zone topics")
     parser.add_argument("--zone", type=int, help="Subscribe to specific zone (1-5)")
@@ -90,7 +80,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Determine topics to subscribe to
     if args.topics:
         topics = args.topics
     elif args.all_zones:
@@ -100,7 +89,6 @@ def main():
     elif args.device_type:
         topics = [f"site/tenantA/+/{args.device_type}/+/telemetry"]
     else:
-        # Default: subscribe to all telemetry topics
         topics = [
             "site/tenantA/zone1/temperature/+/telemetry",
             "site/tenantA/zone1/humidity/+/telemetry", 
