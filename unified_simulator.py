@@ -1,7 +1,20 @@
 import argparse, threading, time, os, json, csv
 import paho.mqtt.client as mqtt
 import random
+import pandas as pd
 from datetime import datetime
+
+CANONICAL_DEVICE_MAPPING = {
+    "Temperature": "Temperature",
+    "Humidity": "Humidity", 
+    "CO2": "CO-GAS",
+    "Light": "Light Intensity",
+    "Motion": "Movement",
+    "Smoke": "Smoke",
+    "FanSpeed": "Fan Speed",
+    "Fan": "Fan",
+    "DoorLock": "Door Lock"
+}
 
 DEVICE_CONFIGS = {
     "Temperature": {
@@ -95,16 +108,16 @@ DEVICE_CONFIGS = {
     }
 }
 
-LEGACY_DEVICES = [
-    ("Temperature", "TemperatureMQTTset.csv", "sensor_temp"),
-    ("Light", "LightIntensityMQTTset.csv", "sensor_light"),
-    ("Humidity", "HumidityMQTTset.csv", "sensor_hum"),
-    ("Motion", "MotionMQTTset.csv", "sensor_motion"),
-    ("CO-Gas", "CO-GasMQTTset.csv", "sensor_co"),
-    ("Smoke", "SmokeMQTTset.csv", "sensor_smoke"),
-    ("FanSpeed", "FanSpeedControllerMQTTset.csv", "sensor_fanspeed"),
-    ("DoorLock", "DoorlockMQTTset.csv", "sensor_door"),
-    ("FanSensor", "FansensorMQTTset.csv", "sensor_fan"),
+CANONICAL_DEVICES = [
+    ("Temperature", "Temperature"),
+    ("Light", "Light Intensity"),
+    ("Humidity", "Humidity"), 
+    ("Motion", "Movement"),
+    ("CO2", "CO-GAS"),
+    ("Smoke", "Smoke"),
+    ("FanSpeed", "Fan Speed"),
+    ("DoorLock", "Door Lock"),
+    ("Fan", "Fan"),
 ]
 
 def mk_client(cid, username=None):
@@ -170,10 +183,10 @@ def enhanced_device_thread(device_name, config, broker, port, username=None, loo
     if not connected:
         print(f"[Enhanced] {device_name} failed to connect after {max_retries} attempts")
 
-def legacy_device_thread(device_name, csv_path, broker, port, username=None, loop=True, publish_interval=None):
+def canonical_device_thread(device_name, topic_filter, broker, port, username=None, loop=True, publish_interval=None):
     
-    topic = f"site/tenantA/home/{device_name}/telemetry"
-    client = mk_client(f"{device_name}-replayer", username)
+    topic = f"site/tenantA/canonical/{device_name}/telemetry"
+    client = mk_client(f"{device_name}-canonical", username)
     
     connected = False
     while not connected:
@@ -181,60 +194,68 @@ def legacy_device_thread(device_name, csv_path, broker, port, username=None, loo
             client.connect(broker, port, 60)
             client.loop_start()
             connected = True
-            print(f"[Legacy] {device_name} connected to {broker}:{port}")
+            print(f"[Canonical] {device_name} connected to {broker}:{port}")
         except Exception as e:
-            print(f"[Legacy] {device_name} connect failed, retrying in 5s: {e}")
+            print(f"[Canonical] {device_name} connect failed, retrying in 5s: {e}")
             time.sleep(5)
 
     rows = []
     try:
-        with open(csv_path, newline='', encoding='utf-8') as f:
-            r = csv.DictReader(f)
-            for row in r:
-                if row.get('mqtt.msgtype') == '3':
-                    rows.append(row)
+        df = pd.read_csv('canonical_dataset.csv')
+        device_data = df[df['topic'] == topic_filter]
+        
+        for _, row in device_data.iterrows():
+            if pd.notna(row['Payload_sample']) and str(row['Payload_sample']).strip():
+                rows.append({
+                    'payload': str(row['Payload_sample']),
+                    'timestamp': row['timestamp'] if pd.notna(row['timestamp']) else '',
+                    'client_id': str(row['client_id']) if pd.notna(row['client_id']) else device_name
+                })
+                
+        print(f"[Canonical] {device_name} loaded {len(rows)} records from canonical dataset")
+        
     except Exception as e:
-        print(f"[Legacy] {device_name} failed to load {csv_path}: {e}")
+        print(f"[Canonical] {device_name} failed to load canonical dataset: {e}")
         return
 
     i = 0
     while loop:
         if not rows:
-            print(f"[Legacy] No valid MQTT data found in {csv_path}")
+            print(f"[Canonical] No valid data found for {device_name}")
             break
             
         row = rows[i % len(rows)]
         
-        tcp_payload = row.get('tcp.payload', '')
-        if tcp_payload:
-            try:
-                payload_bytes = bytes.fromhex(tcp_payload)
-                if len(payload_bytes) > 10:
-                    payload_str = payload_bytes[10:].decode('utf-8', errors='ignore')
-                    if payload_str.strip().replace('-', '').replace('.', '').isdigit():
-                        try:
-                            value = float(payload_str.strip())
-                            payload = json.dumps({"value": value, "source": "csv_replay"})
-                        except:
-                            payload = json.dumps({"value": payload_str.strip(), "source": "csv_replay"})
-                    else:
-                        payload = json.dumps({"value": payload_str.strip(), "source": "csv_replay"})
-                else:
-                    payload = json.dumps({"value": round(random.uniform(10, 100), 2), "source": "generated"})
-            except:
-                payload = json.dumps({"value": round(random.uniform(10, 100), 2), "source": "generated"})
-        else:
-            payload = json.dumps({"value": round(random.uniform(10, 100), 2), "source": "generated"})
+        try:
+            value = float(row['payload'])
+            payload = json.dumps({
+                "device": device_name,
+                "value": value,
+                "timestamp": row['timestamp'],
+                "client_id": row['client_id'],
+                "source": "canonical_dataset"
+            })
+        except:
+            payload = json.dumps({
+                "device": device_name,
+                "value": row['payload'],
+                "timestamp": row['timestamp'], 
+                "client_id": row['client_id'],
+                "source": "canonical_dataset"
+            })
 
-        result = client.publish(topic, payload)
-        if result.rc == mqtt.MQTT_ERR_SUCCESS:
-            print(f"[Legacy] {device_name} -> {topic}: {payload}")
-        
-        if publish_interval is not None:
-            time.sleep(publish_interval)
-        else:
-            time.sleep(0.1 + random.random()*0.1)
-        i += 1
+        try:
+            result = client.publish(topic, payload)
+            print(f"[Canonical] {device_name} -> {topic}: {payload}")
+            
+            if publish_interval is not None:
+                time.sleep(publish_interval)
+            else:
+                time.sleep(0.5 + random.random()*0.5)
+            i += 1
+        except Exception as e:
+            print(f"[Canonical] {device_name} publish error: {e}")
+            time.sleep(1)
 
 def main():
     parser = argparse.ArgumentParser(description="Unified MQTT IoT Simulator")
@@ -247,18 +268,18 @@ def main():
     mode_group.add_argument("--enhanced", action="store_true", default=True, 
                            help="Use enhanced mode with realistic IoT payloads (default)")
     mode_group.add_argument("--legacy", action="store_true", 
-                           help="Use legacy mode replaying from CSV data")
+                           help="Use canonical mode replaying from canonical_dataset.csv")
     
     parser.add_argument("--devices", nargs="+", 
-                       help="Specific devices to simulate (enhanced mode) or device names (legacy)")
-    parser.add_argument("--indir", default="datasets", 
-                       help="Folder containing device CSV files (legacy mode)")
+                       help="Specific devices to simulate (enhanced mode) or device names (canonical)")
+    parser.add_argument("--indir", default=".", 
+                       help="Working directory (canonical mode uses canonical_dataset.csv)")
     
     args = parser.parse_args()
     
     if args.legacy:
-        mode = "legacy"
-        print(f"🔄 LEGACY MODE: Replaying from CSV data")
+        mode = "canonical"
+        print(f"🔄 CANONICAL MODE: Replaying from canonical_dataset.csv")
     else:
         mode = "enhanced"  
         print(f"✨ ENHANCED MODE: Realistic IoT payload generation")
@@ -294,31 +315,26 @@ def main():
             time.sleep(0.5)
     
     else:
-        devices_to_run = LEGACY_DEVICES
+        devices_to_run = CANONICAL_DEVICES
         if args.devices:
             device_names = [d.lower() for d in args.devices]
-            devices_to_run = [(name, fname, username) for name, fname, username in LEGACY_DEVICES 
+            devices_to_run = [(name, topic_filter) for name, topic_filter in CANONICAL_DEVICES 
                             if name.lower() in device_names]
         
-        print(f"📡 Starting {len(devices_to_run)} legacy device simulators:")
-        for name, _, _ in devices_to_run:
+        print(f"📡 Starting {len(devices_to_run)} canonical device simulators:")
+        for name, _ in devices_to_run:
             print(f"   - {name}")
         print("=" * 60)
         
-        for name, fname, username in devices_to_run:
-            csv_path = os.path.join(args.indir, fname)
-            if not os.path.exists(csv_path):
-                print(f"❌ Missing {csv_path} - skipping {name}")
-                continue
-            
+        for name, topic_filter in devices_to_run:
             t = threading.Thread(
-                target=legacy_device_thread, 
-                args=(name, csv_path, args.broker, args.port, username, True, args.publish_interval), 
+                target=canonical_device_thread, 
+                args=(name, topic_filter, args.broker, args.port, f"sensor_{name.lower()}", True, args.publish_interval), 
                 daemon=True
             )
             t.start()
             threads.append(t)
-            print(f"✅ Started {name} legacy simulator -> {csv_path}")
+            print(f"✅ Started {name} canonical simulator -> topic: {topic_filter}")
             time.sleep(0.5)
 
     print("=" * 60)
