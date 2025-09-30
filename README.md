@@ -3,10 +3,11 @@
 Dự án nghiên cứu bảo mật MQTT IoT bao gồm:
 
 - 🔄 **Data Pipeline**: Xử lý và chuẩn hóa dữ liệu MQTT từ CSV
-- 📡 **IoT Simulators**: Mô phỏng 9 thiết bị IoT với payload chuẩn
+- 📡 **IoT Simulators**: Mô phỏng 9 thiết bị IoT với payload chuẩn từ canonical dataset
 - ⚔️ **Attack Scripts**: 9 kịch bản tấn công MQTT để kiểm tra bảo mật
 - 🔬 **Analysis Tools**: Trích xuất đặc trưng và phân tích dữ liệu
 - ✨ **Production Ready**: Code đã được optimize, xóa sạch comment
+- 🗂️ **Unified Data Source**: Tất cả simulator đọc từ canonical_dataset.csv duy nhất
 
 ## 📁 Cấu trúc dự án
 
@@ -19,7 +20,7 @@ Do An IA/
 │   └── canonical_dataset.csv         # Dataset đã chuẩn hóa
 │
 ├── 📡 IoT Simulators
-│   ├── unified_simulator.py         # ✨ Unified simulator (enhanced + legacy modes)
+│   ├── unified_simulator.py         # ✨ Unified simulator (enhanced + canonical modes)
 │   └── test_subscriber.py           # Test và verify simulator output
 │
 ├── ⚔️ Attack Scripts
