@@ -24,7 +24,10 @@ class WildcardSession:
         handle = open(path, "a", newline="", encoding="utf-8")
         writer = csv.writer(handle)
         if not exists:
-            writer.writerow(["timestamp_utc", "event", "topic", "payload", "details"])
+            writer.writerow([
+                "timestamp", "client_id", "packet_type", "topic", 
+                "payload", "details"
+            ])
         return writer, handle
 
     def close(self):
@@ -32,19 +35,31 @@ class WildcardSession:
             self.log_handle.flush()
             self.log_handle.close()
 
-    def log(self, event, topic, payload, details):
+    def log(self, packet_type, topic, payload, details):
         if not self.log_writer:
             return
         with self.log_lock:
-            self.log_writer.writerow([datetime.now(timezone.utc).isoformat(), event, topic, payload, details])
+            client_id = getattr(self, 'client_id', 'wildcard_abuser')
+            self.log_writer.writerow([
+                datetime.now(timezone.utc).isoformat(), 
+                client_id,
+                packet_type, 
+                topic, 
+                payload, 
+                details
+            ])
 
     def on_connect(self, client, userdata, flags, rc):
         print(f"[connect] rc={rc}")
         if rc != 0:
             return
+        # Store client_id for logging
+        self.client_id = client._client_id.decode() if hasattr(client._client_id, 'decode') else str(client._client_id)
         for topic in self.args.topics:
             client.subscribe(topic, qos=self.args.qos)
             print(f"[subscribe] requested {topic} qos={self.args.qos}")
+            # Log SUBSCRIBE packet
+            self.log("SUBSCRIBE", topic, "", f"qos={self.args.qos}")
 
     def on_disconnect(self, client, userdata, rc):
         print(f"[disconnect] rc={rc}")
@@ -52,7 +67,7 @@ class WildcardSession:
     def on_subscribe(self, client, userdata, mid, granted_qos):
         detail = ",".join(str(q) for q in granted_qos)
         print(f"[suback] mid={mid} qos={detail}")
-        self.log("suback", "", "", detail)
+        self.log("SUBACK", "", "", detail)
 
     def on_message(self, client, userdata, msg):
         payload_preview = msg.payload[:64]
@@ -61,7 +76,7 @@ class WildcardSession:
         except AttributeError:
             payload_text = str(payload_preview)
         print(f"[message] topic={msg.topic} len={len(msg.payload)}")
-        self.log("message", msg.topic, payload_text, f"len={len(msg.payload)}")
+        self.log("MESSAGE", msg.topic, payload_text, f"len={len(msg.payload)}")
 
     def resubscribe_loop(self, client):
         if self.args.resubscribe_interval <= 0:

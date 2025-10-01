@@ -33,7 +33,10 @@ class BruteForceSession:
         handle = open(path, "a", newline="", encoding="utf-8")
         writer = csv.writer(handle)
         if not exists:
-            writer.writerow(["timestamp_utc", "event", "client_id", "topic", "status", "detail", "latency_ms"])
+            writer.writerow([
+                "timestamp", "packet_type", "client_id", "src_ip", 
+                "topic", "connack_reason", "status", "latency_ms"
+            ])
         return writer, handle
 
     def close(self):
@@ -41,14 +44,24 @@ class BruteForceSession:
             self.log_handle.flush()
             self.log_handle.close()
 
-    def log(self, event, client_id, topic, status, detail, started=None):
+    def log(self, packet_type, client_id, topic, connack_reason, status, started=None):
         if not self.log_writer:
             return
         latency = ""
         if started is not None:
             latency = f"{(time.time() - started) * 1000:.2f}"
+        src_ip = "localhost"  # Would be filled by packet capture
         with self.log_lock:
-            self.log_writer.writerow([datetime.now(timezone.utc).isoformat(), event, client_id, topic, status, detail, latency])
+            self.log_writer.writerow([
+                datetime.now(timezone.utc).isoformat(), 
+                packet_type,
+                client_id, 
+                src_ip,
+                topic, 
+                connack_reason,
+                status, 
+                latency
+            ])
 
     def create_client(self, seq: int):
         client_id = f"{self.args.client_prefix}{seq:03d}"
@@ -63,7 +76,13 @@ class BruteForceSession:
         return client, client_id
 
     def on_connect(self, client, userdata, flags, rc):
-        print(f"[connect] client={client._client_id.decode()} rc={rc}")
+        client_id = client._client_id.decode()
+        print(f"[connect] client={client_id} rc={rc}")
+        # Log CONNECT attempt with result
+        connack_reason = "Success" if rc == 0 else f"Error_{rc}"
+        packet_type = "CONNECT"
+        status = "success" if rc == 0 else "failed" 
+        self.log(packet_type, client_id, "", connack_reason, status)
 
     def on_disconnect(self, client, userdata, rc):
         print(f"[disconnect] client={client._client_id.decode()} rc={rc}")
@@ -80,7 +99,7 @@ class BruteForceSession:
         if granted_qos and granted_qos[0] == 0x80:
             status = "denied"
         print(f"[suback] client={client_id} topic={topic} status={status} qos={qos_display}")
-        self.log("suback", client_id, topic, status, detail, started)
+        self.log("SUBACK", client_id, topic, qos_display, status, started)
 
     def on_message(self, client, userdata, msg):
         client_id = client._client_id.decode()
