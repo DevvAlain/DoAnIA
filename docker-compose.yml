@@ -10,6 +10,10 @@ services:
       - "18083:18083"
     environment:
       - EMQX_ALLOW_ANONYMOUS=true
+      - EMQX_ACL_NOMATCH=allow
+      - EMQX_ENABLE_ACL=false
+      - EMQX_AUTHORIZATION__NO_MATCH=allow
+      - EMQX_AUTHORIZATION__SOURCES=[]
     networks:
       - iot-net
 

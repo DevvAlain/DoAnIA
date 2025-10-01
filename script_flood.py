@@ -50,7 +50,21 @@ def publish_worker(worker_id: int, args, stop_event: threading.Event, log_writer
                 print(f"[{client_id}] publish error code {result}")
             if log_writer:
                 with log_lock:
-                    log_writer.writerow([now.isoformat(), client_id, topic, mid, result])
+                    # Enhanced logging with required fields for detection
+                    src_ip = "localhost"  # Client perspective - would be filled by packet capture
+                    packet_type = "PUBLISH"
+                    payload_length = len(payload)
+                    log_writer.writerow([
+                        now.isoformat(),
+                        client_id, 
+                        src_ip,
+                        topic, 
+                        packet_type,
+                        payload_length,
+                        args.qos,
+                        mid, 
+                        result
+                    ])
             sent += 1
             if args.stats_interval and time.time() >= next_stats:
                 print(f"[{client_id}] messages sent: {sent}")
@@ -70,7 +84,10 @@ def prep_log(path: str):
     fh = open(path, "a", newline="", encoding="utf-8")
     writer = csv.writer(fh)
     if not exists:
-        writer.writerow(["timestamp_utc", "client_id", "topic", "mid", "result"])
+        writer.writerow([
+            "timestamp", "client_id", "src_ip", "topic", 
+            "packet_type", "payload_length", "qos", "mid", "result"
+        ])
     return writer, fh
 
 def main():

@@ -9,21 +9,30 @@ Dự án nghiên cứu bảo mật MQTT IoT bao gồm:
 - ✨ **Production Ready**: Code đã được optimize, xóa sạch comment
 - 🗂️ **Unified Data Source**: Tất cả simulator đọc từ canonical_dataset.csv duy nhất
 
-## 📁 Cấu trúc dự án
+## 📁 Cấu trúc dự án sau cleanup
 
 ```
 Do An IA/
-├── 📊 Data Processing
+├── 📊 Data Processing Pipeline
 │   ├── datasets/                     # Dataset CSV thô từ 9 thiết bị IoT
 │   ├── build_canonical_dataset.py    # Chuẩn hóa CSV về schema chuẩn
-│   ├── feature_extract.py            # Trích xuất đặc trưng cho ML
-│   └── canonical_dataset.csv         # Dataset đã chuẩn hóa
+│   ├── canonical_dataset.csv         # Dataset đã chuẩn hóa
+│   ├── features_canonical_dataset.csv # Features đã trích xuất
+│   └── feature_extract.py            # Trích xuất đặc trưng cho ML
 │
-├── 📡 IoT Simulators
-│   ├── unified_simulator.py         # ✨ Unified simulator (enhanced + canonical modes)
-│   └── test_subscriber.py           # Test và verify simulator output
+├── 📡 Production Simulation Flow
+│   ├── canonical_simulator.py        # Canonical dataset → MQTT traffic
+│   ├── mqtt_traffic_collector.py     # EMQX → Traffic logging
+│   ├── unified_simulator.py          # Legacy: Enhanced + Canonical modes
+│   └── test_subscriber.py            # Test và verify simulator output
 │
-├── ⚔️ Attack Scripts
+├── 🛡️ Security Detection Pipeline
+│   ├── security_detector.py          # Rule-based + Anomaly detection
+│   ├── run_complete_flow.py          # End-to-end flow automation
+│   ├── test_attack_flows.py          # Attack compliance testing
+│   └── security_alerts.csv           # Real-time security alerts
+│
+├── ⚔️ Attack Scripts (9 kịch bản)
 │   ├── script_flood.py              # Message flooding attack
 │   ├── script_wildcard.py           # Wildcard subscription abuse
 │   ├── script_bruteforce.py         # Topic brute-force attack
@@ -35,18 +44,25 @@ Do An IA/
 │   ├── script_qos2_abuse.py         # QoS 2 abuse attack
 │   └── demo_all_attacks.py          # Demo tất cả attacks
 │
-└── 🐳 Deployment
-    ├── docker-compose.yml           # EMQX broker + simulator stack
-    ├── Dockerfile                   # Container image cho simulator
-    └── requirements.txt             # Python dependencies
+├── 🐳 Deployment & Infrastructure
+│   ├── docker-compose.yml           # EMQX broker + services
+│   ├── Dockerfile                   # Container image cho simulator
+│   └── requirements.txt             # Python dependencies
 │
 └── 📄 Documentation
+    ├── README.md                     # Main documentation
+    ├── Comprehensive_Research_Documentation.md # Academic documentation
+    ├── Huong_dan_demo_IoT_MQTT.docx  # Demo guide (Vietnamese)
+    └── IoT_MQTT_Security_Research_Comprehensive.docx # Research report
+```
+
     ├── README.md                    # Hướng dẫn sử dụng chi tiết
     ├── PROJECT_SUMMARY.md           # Tóm tắt dự án
     ├── Comprehensive_Research_Documentation.md # Tài liệu nghiên cứu đầy đủ
     ├── IoT_MQTT_Security_Research_Platform.docx # Tài liệu cơ bản (Word)
     └── IoT_MQTT_Security_Research_Comprehensive.docx # Tài liệu học thuật đầy đủ (Word)
-```
+
+````
 
 > **Lưu ý**: hãy đặt mọi file dataset (\*.csv) vào thư mục `datasets/` trước khi chạy các lệnh bên dưới.
 
@@ -57,12 +73,32 @@ Do An IA/
 - Tùy chọn: Docker Desktop + Docker Compose (chạy bằng container)
 - Bộ dataset CSV thô (TemperatureMQTTset.csv, LightIntensityMQTTset.csv, ...)
 
-## 🚀 Quick Start
+## 🚀 Quick Start - Complete Security Flow
+
+### ✨ NEW: End-to-End Security Pipeline (Recommended)
+
+Chạy complete flow theo architecture diagram trong 1 lệnh:
+
+```bash
+# Complete security pipeline: Dataset → Canonical → MQTT → Detection → Alerts
+python run_complete_flow.py --duration 180
+
+# Flow sẽ tự động:
+# 1. 📊 Prepare canonical dataset
+# 2. 🐳 Start EMQX broker
+# 3. 📡 Start traffic collection
+# 4. 🎯 Start canonical simulator
+# 5. ⏱️ Run simulation (180s)
+# 6. 🔬 Extract features
+# 7. 🛡️ Run security detection
+# 8. 📋 Generate security report
+````
 
 ### Prerequisites
 
 - Python 3.11+
-- MQTT Broker (Mosquitto/EMQX) hoặc Docker
+- Docker + Docker Compose
+- MQTT Broker (EMQX/Mosquitto)
 
 ### 1. Setup Environment
 
@@ -75,7 +111,9 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. Data Processing Pipeline
+### 2. Manual Step-by-Step Flow (Advanced)
+
+#### 📊 Step 1: Data Processing Pipeline
 
 ```bash
 # Chuẩn hóa dataset từ CSV
@@ -85,42 +123,39 @@ python build_canonical_dataset.py --pattern "*MQTTset.csv" --output canonical_da
 python feature_extract.py canonical_dataset.csv --out features_canonical_dataset.csv
 ```
 
-### 3. IoT Simulation
-
-#### 🔥 Enhanced Mode (Khuyến nghị)
+#### 🐳 Step 2: Infrastructure Setup
 
 ```bash
-# Tạo dữ liệu IoT với payload chuẩn (mặc định)
-python unified_simulator.py --broker localhost --devices Temperature Humidity CO2
+# Start EMQX broker stack
+docker-compose up -d
 
-# Test output trong terminal khác
-python test_subscriber.py --all-zones
+# Verify broker status
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
-#### 🔄 Legacy Mode
+#### � Step 3: Canonical Simulation Flow
 
 ```bash
-# Replay từ CSV data (backward compatibility)
-python unified_simulator.py --legacy --broker localhost --publish-interval 0.2
+# Terminal 1: Start traffic collection
+python mqtt_traffic_collector.py --broker localhost --log-file traffic_log.csv
+
+# Terminal 2: Start canonical simulator
+python canonical_simulator.py --canonical-file canonical_dataset.csv --broker localhost
+
+# Terminal 3: Monitor traffic (optional)
+python test_subscriber.py --broker localhost --all-zones
 ```
 
-### 4. Security Testing
-
-#### Single Attack
+#### 🛡️ Step 4: Security Detection
 
 ```bash
-# Chạy một loại tấn công
-python script_flood.py --broker localhost --workers 10 --msg-rate 100
+# Stop traffic generation (Ctrl+C on simulators)
 
-# Topic enumeration
-python script_topic_enumeration.py --broker localhost --workers 2
-```
+# Extract features from collected traffic
+python feature_extract.py traffic_log.csv --out traffic_features.csv
 
-#### All Attacks Demo
-
-```bash
-# Demo tất cả kịch bản tấn công
-python demo_all_attacks.py --broker localhost --duration 30
+# Run security detection
+python security_detector.py --features traffic_features.csv --alerts security_alerts.csv
 ```
 
 ## 📡 IoT Devices & Payload Format

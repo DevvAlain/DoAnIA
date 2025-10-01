@@ -1,6 +1,14 @@
 # CSV Dataset files (too large for Git)
 *.csv
 
+# Log và temporary files
+*.log
+*_log.csv
+*_traffic.csv
+test_*.csv
+security_report_*.txt
+simulator_flow.log
+
 # Python
 __pycache__/
 *.py[cod]
