@@ -8,14 +8,14 @@ class MQTTSubscriber:
         self.broker = broker
         self.port = port
         self.topics = topics if isinstance(topics, list) else [topics]
-        self.client = mqtt.Client(client_id="test_subscriber_001")
+        self.client = mqtt.Client(client_id="test_subscriber_001", callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         self.message_count = 0
         
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         self.client.on_disconnect = self.on_disconnect
     
-    def on_connect(self, client, userdata, flags, rc):
+    def on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
             print(f"✅ Connected to {self.broker}:{self.port}")
             print(f"📡 Subscribing to {len(self.topics)} topics...")
@@ -47,7 +47,7 @@ class MQTTSubscriber:
         print(f"📏 Size: {len(msg.payload)} bytes")
         print("-" * 80)
     
-    def on_disconnect(self, client, userdata, rc):
+    def on_disconnect(self, client, userdata, flags, rc, properties=None):
         if rc != 0:
             print(f"⚠️  Unexpected disconnection: {rc}")
         else:

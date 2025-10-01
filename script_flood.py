@@ -30,7 +30,7 @@ def ensure_connection(client: mqtt.Client, broker: str, port: int, keepalive: in
 def publish_worker(worker_id: int, args, stop_event: threading.Event, log_writer, log_lock: threading.Lock):
     client_id = f"{args.client_prefix}{worker_id:03d}"
     topic = args.topic_template.format(client=client_id, idx=worker_id)
-    client = mqtt.Client(client_id=client_id, clean_session=True)
+    client = mqtt.Client(client_id=client_id, clean_session=True, callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     if args.username:
         client.username_pw_set(args.username, args.password)
 

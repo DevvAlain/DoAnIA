@@ -39,6 +39,13 @@ Do An IA/
     ├── docker-compose.yml           # EMQX broker + simulator stack
     ├── Dockerfile                   # Container image cho simulator
     └── requirements.txt             # Python dependencies
+│
+└── 📄 Documentation
+    ├── README.md                    # Hướng dẫn sử dụng chi tiết
+    ├── PROJECT_SUMMARY.md           # Tóm tắt dự án
+    ├── Comprehensive_Research_Documentation.md # Tài liệu nghiên cứu đầy đủ
+    ├── IoT_MQTT_Security_Research_Platform.docx # Tài liệu cơ bản (Word)
+    └── IoT_MQTT_Security_Research_Comprehensive.docx # Tài liệu học thuật đầy đủ (Word)
 ```
 
 > **Lưu ý**: hãy đặt mọi file dataset (\*.csv) vào thư mục `datasets/` trước khi chạy các lệnh bên dưới.
