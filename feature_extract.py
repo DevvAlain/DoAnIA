@@ -166,7 +166,7 @@ def main():
     else:
         df['msgid_present'] = 0
 
-    df['timestamp'] = df['ts'].view('int64') // 10**9
+    df['timestamp'] = df['ts'].astype('int64') // 10**9
     df.loc[df['timestamp'].isna(), 'timestamp'] = 0
     df['timestamp'] = df['timestamp'].astype(int)
 

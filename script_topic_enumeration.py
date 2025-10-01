@@ -259,7 +259,7 @@ class TopicEnumerationAttack:
 
     def attack_worker(self, worker_id):
         client_id = f"{self.args.client_prefix}_{worker_id:03d}"
-        client = mqtt.Client(client_id=client_id, clean_session=True)
+        client = mqtt.Client(client_id=client_id, clean_session=True, callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         
         if self.args.username:
             client.username_pw_set(self.args.username, self.args.password)

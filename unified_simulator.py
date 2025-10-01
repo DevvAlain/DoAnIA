@@ -121,7 +121,7 @@ CANONICAL_DEVICES = [
 ]
 
 def mk_client(cid, username=None):
-    c = mqtt.Client(client_id=cid)
+    c = mqtt.Client(client_id=cid, callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     if username: 
         c.username_pw_set(username)
     return c
