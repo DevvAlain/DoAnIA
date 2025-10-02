@@ -3,32 +3,31 @@
 Dự án nghiên cứu bảo mật MQTT IoT bao gồm:
 
 - 🔄 **Data Pipeline**: Xử lý và chuẩn hóa dữ liệu MQTT từ CSV
-- 📡 **IoT Simulators**: Mô phỏng 9 thiết bị IoT với payload chuẩn từ canonical dataset
+- 📡 **IoT Simulators**: Mô phỏng **21 thiết bị IoT** với payload chuẩn từ canonical dataset
 - ⚔️ **Attack Scripts**: 9 kịch bản tấn công MQTT để kiểm tra bảo mật
 - 🔬 **Analysis Tools**: Trích xuất đặc trưng và phân tích dữ liệu
-- ✨ **Production Ready**: Code đã được optimize, xóa sạch comment
-- 🗂️ **Unified Data Source**: Tất cả simulator đọc từ canonical_dataset.csv duy nhất
+- ✨ **Production Ready**: Code đã được optimize với flow chuẩn
+- 🗂️ **Unified Data Source**: Tất cả simulator đọc từ canonical_dataset.csv (4.5M records)
 
-## 📁 Cấu trúc dự án sau cleanup
+## 📁 Cấu trúc dự án
 
 ```
 Do An IA/
 ├── 📊 Data Processing Pipeline
-│   ├── datasets/                     # Dataset CSV thô từ 9 thiết bị IoT
+│   ├── datasets/                     # 21 dataset CSV từ Edge-IIoT + Gotham + Original
 │   ├── build_canonical_dataset.py    # Chuẩn hóa CSV về schema chuẩn
-│   ├── canonical_dataset.csv         # Dataset đã chuẩn hóa
+│   ├── canonical_dataset.csv         # Dataset đã chuẩn hóa (4.5M records)
 │   ├── features_canonical_dataset.csv # Features đã trích xuất
 │   └── feature_extract.py            # Trích xuất đặc trưng cho ML
 │
 ├── 📡 Production Simulation Flow
-│   ├── canonical_simulator.py        # Canonical dataset → MQTT traffic
+│   ├── canonical_simulator.py        # Main simulator - 21 devices từ canonical dataset
 │   ├── mqtt_traffic_collector.py     # EMQX → Traffic logging
-│   ├── unified_simulator.py          # Legacy: Enhanced + Canonical modes
-│   └── test_subscriber.py            # Test và verify simulator output
+│   ├── test_subscriber.py            # Test và verify simulator output
+│   └── run_complete_flow.py          # End-to-end automation
 │
 ├── 🛡️ Security Detection Pipeline
 │   ├── security_detector.py          # Rule-based + Anomaly detection
-│   ├── run_complete_flow.py          # End-to-end flow automation
 │   ├── test_attack_flows.py          # Attack compliance testing
 │   └── security_alerts.csv           # Real-time security alerts
 │
@@ -46,7 +45,7 @@ Do An IA/
 │
 ├── 🐳 Deployment & Infrastructure
 │   ├── docker-compose.yml           # EMQX broker + services
-│   ├── Dockerfile                   # Container image cho simulator
+│   ├── Dockerfile                   # Container image cho canonical simulator
 │   └── requirements.txt             # Python dependencies
 │
 └── 📄 Documentation
@@ -55,23 +54,6 @@ Do An IA/
     ├── Huong_dan_demo_IoT_MQTT.docx  # Demo guide (Vietnamese)
     └── IoT_MQTT_Security_Research_Comprehensive.docx # Research report
 ```
-
-    ├── README.md                    # Hướng dẫn sử dụng chi tiết
-    ├── PROJECT_SUMMARY.md           # Tóm tắt dự án
-    ├── Comprehensive_Research_Documentation.md # Tài liệu nghiên cứu đầy đủ
-    ├── IoT_MQTT_Security_Research_Platform.docx # Tài liệu cơ bản (Word)
-    └── IoT_MQTT_Security_Research_Comprehensive.docx # Tài liệu học thuật đầy đủ (Word)
-
-````
-
-> **Lưu ý**: hãy đặt mọi file dataset (\*.csv) vào thư mục `datasets/` trước khi chạy các lệnh bên dưới.
-
-## Yêu cầu
-
-- Python 3.11 trở lên (chạy local)
-- Pip (hoặc công cụ quản lý package tương đương)
-- Tùy chọn: Docker Desktop + Docker Compose (chạy bằng container)
-- Bộ dataset CSV thô (TemperatureMQTTset.csv, LightIntensityMQTTset.csv, ...)
 
 ## 🚀 Quick Start - Complete Security Flow
 
@@ -92,13 +74,13 @@ python run_complete_flow.py --duration 180
 # 6. 🔬 Extract features
 # 7. 🛡️ Run security detection
 # 8. 📋 Generate security report
-````
+```
 
-### Prerequisites
+## Yêu cầu
 
-- Python 3.11+
-- Docker + Docker Compose
-- MQTT Broker (EMQX/Mosquitto)
+- Python 3.12+ (recommend)
+- Docker Desktop + Docker Compose
+- Bộ dataset CSV (21 files): Edge-IIoT, Gotham City, Original 9 devices
 
 ### 1. Setup Environment
 
@@ -133,14 +115,14 @@ docker-compose up -d
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
-#### � Step 3: Canonical Simulation Flow
+#### 📡 Step 3: Canonical Simulation Flow (21 Devices)
 
 ```bash
 # Terminal 1: Start traffic collection
 python mqtt_traffic_collector.py --broker localhost --log-file traffic_log.csv
 
-# Terminal 2: Start canonical simulator
-python canonical_simulator.py --canonical-file canonical_dataset.csv --broker localhost
+# Terminal 2: Start canonical simulator with 21 devices
+python canonical_simulator.py --broker localhost --duration 0
 
 # Terminal 3: Monitor traffic (optional)
 python test_subscriber.py --broker localhost --all-zones
@@ -160,48 +142,82 @@ python security_detector.py --features traffic_features.csv --alerts security_al
 
 ## 📡 IoT Devices & Payload Format
 
-### 🌡️ Supported Devices
+### 🌡️ Supported Devices (21 Total)
 
-Enhanced simulator hỗ trợ 9 loại thiết bị IoT với payload format chuẩn:
+Canonical simulator hỗ trợ 21 loại thiết bị IoT từ 3 nguồn dataset:
 
-| Device          | Topic Pattern                                          | Payload Format                                     |
-| --------------- | ------------------------------------------------------ | -------------------------------------------------- |
-| **Temperature** | `site/tenantA/zone1/temperature/{device_id}/telemetry` | `{"timestamp": 169xxx, "value": 24.6, "unit":"C"}` |
-| **Humidity**    | `site/tenantA/zone1/humidity/{device_id}/telemetry`    | `{"value": 55.2, "unit":"%"}`                      |
-| **CO₂/Gas**     | `site/tenantA/zone2/co2/{device_id}/telemetry`         | `{"value": 420, "unit":"ppm"}`                     |
-| **Vibration**   | `site/tenantA/zone3/vibration/{device_id}/telemetry`   | `{"rms":0.032, "freq":120}`                        |
-| **Smoke**       | `site/tenantA/zone1/smoke/{device_id}/telemetry`       | `{"value": 0.04, "alarm": false}`                  |
-| **Air Quality** | `site/tenantA/zone4/airquality/{device_id}/telemetry`  | `{"pm2_5": 12.4, "pm10": 25.1}`                    |
-| **Light**       | `site/tenantA/zone2/light/{device_id}/telemetry`       | `{"lux": 300}`                                     |
-| **Sound**       | `site/tenantA/zone2/sound/{device_id}/telemetry`       | `{"db": 45}`                                       |
-| **Water Level** | `site/tenantA/zone5/waterlevel/{device_id}/telemetry`  | `{"level": 1.24, "unit":"m"}`                      |
+#### **Original Devices (9)**
 
-### 🎯 Topic Structure
+| Device          | Topic Pattern                                   | Source Dataset                |
+| --------------- | ----------------------------------------------- | ----------------------------- |
+| **Temperature** | `site/canonical/temperature/device_*/telemetry` | TemperatureMQTTset.csv        |
+| **Humidity**    | `site/canonical/humidity/device_*/telemetry`    | HumidityMQTTset.csv           |
+| **CO2**         | `site/canonical/co2/device_*/telemetry`         | CO-GasMQTTset.csv             |
+| **Light**       | `site/canonical/light/device_*/telemetry`       | LightIntensityMQTTset.csv     |
+| **Motion**      | `site/canonical/motion/device_*/telemetry`      | MotionMQTTset.csv             |
+| **Smoke**       | `site/canonical/smoke/device_*/telemetry`       | SmokeMQTTset.csv              |
+| **Fan**         | `site/canonical/fan/device_*/telemetry`         | FanSensorMQTTset.csv          |
+| **Door**        | `site/canonical/door/device_*/telemetry`        | DoorlockMQTTset.csv           |
+| **Vibration**   | `vibration/cooler-iotsim-cooler-motor-1`        | FanSpeedControllerMQTTset.csv |
 
+#### **Edge-IIoT Devices (8)**
+
+| Device             | Topic Pattern                                      | Source Dataset                |
+| ------------------ | -------------------------------------------------- | ----------------------------- |
+| **DistanceSensor** | `site/canonical/distancesensor/device_*/telemetry` | DistanceSensorMQTTset.csv     |
+| **FlameSensor**    | `site/canonical/flamesensor/device_*/telemetry`    | FlameSensorMQTTset.csv        |
+| **IRReceiver**     | `site/canonical/irreceiver/device_*/telemetry`     | IRReceiverMQTTset.csv         |
+| **PhLevelSensor**  | `site/canonical/phlevelsensor/device_*/telemetry`  | PhLevelSensorMQTTset.csv      |
+| **SoilMoisture**   | `site/canonical/soilmoisture/device_*/telemetry`   | SoilMoistureMQTTset.csv       |
+| **SoundSensor**    | `site/canonical/soundsensor/device_*/telemetry`    | SoundSensorMQTTset.csv        |
+| **TempHumidity**   | `site/canonical/temphumidity/device_*/telemetry`   | TempHumiditySensorMQTTset.csv |
+| **WaterLevel**     | `site/canonical/waterlevel/device_*/telemetry`     | WaterLevelSensorMQTTset.csv   |
+
+#### **Gotham City Devices (4)**
+
+| Device                    | Topic Pattern                                   | Source Dataset                   |
+| ------------------------- | ----------------------------------------------- | -------------------------------- |
+| **AirQuality**            | `city/air/sensor-iotsim-air-quality-1`          | AirQualityMQTTset.csv            |
+| **CoolerMotor**           | `vibration/cooler-iotsim-cooler-motor-1`        | CoolerMotorMQTTset.csv           |
+| **HydraulicSystem**       | `hydraulic/rig-iotsim-hydraulic-system-1`       | HydraulicSystemMQTTset.csv       |
+| **PredictiveMaintenance** | `maintenance/iotsim-predictive-maintenance-1/*` | PredictiveMaintenanceMQTTset.csv |
+
+### 🎯 Payload Format
+
+Canonical simulator sử dụng payload thực từ packet capture:
+
+```json
+{
+  "device_type": "Temperature",
+  "canonical_source": "dataset_canonical",
+  "raw_payload": "24.07 75.32",
+  "simulator_timestamp": "2025-10-02T13:04:12"
+}
 ```
-site/tenantA/zone{N}/{device_type}/device_{XXX}/telemetry
-```
-
-Example: `site/tenantA/zone1/temperature/device_001/telemetry`
 
 ### ⚡ Usage Examples
 
 ```bash
-# Enhanced mode - chỉ chạy Temperature và Humidity
-python unified_simulator.py --devices Temperature Humidity
+# Chạy canonical simulator với 21 devices
+python canonical_simulator.py --broker localhost --duration 0
 
-# Enhanced mode - tùy chỉnh publish interval
-python unified_simulator.py --publish-interval 5.0
+# Chạy với thời gian giới hạn (300 giây)
+python canonical_simulator.py --broker localhost --duration 300
 
-# Legacy mode - replay specific devices từ CSV
-python unified_simulator.py --legacy --devices Temperature Light
+# Chạy với tùy chỉnh publish interval
+python canonical_simulator.py --broker localhost --publish-interval 5.0
 
-# Subscribe specific zone
-python test_subscriber.py --zone 1
+# Subscribe specific patterns
+python test_subscriber.py --pattern "site/canonical/temperature/+/telemetry"
+python test_subscriber.py --pattern "city/air/+"
+python test_subscriber.py --pattern "vibration/+"
+```
 
 # Subscribe specific device type
+
 python test_subscriber.py --device-type temperature
-```
+
+````
 
 Các tham số quan trọng:
 
@@ -212,17 +228,17 @@ Các tham số quan trọng:
 
    ```bash
    python feature_extract.py canonical_dataset.csv --out features_canonical_dataset.csv
-   ```
+````
 
-   File đầu ra giữ lại các trường telemetry quan trọng (`timestamp`, `client_id`, QoS, thời gian giữa hai gói, độ dài payload, nhãn,...).
+File đầu ra giữ lại các trường telemetry quan trọng (`timestamp`, `client_id`, QoS, thời gian giữa hai gói, độ dài payload, nhãn,...).
 
-5. Phát lại dữ liệu lên broker bằng script (tự tìm CSV trong `datasets/`).
+5. Phát lại dữ liệu lên broker bằng canonical simulator.
 
    ```bash
-   python unified_simulator.py --legacy --broker localhost --port 1883 --publish-interval 0.2
+   python canonical_simulator.py --broker localhost --port 1883 --duration 0
    ```
 
-   Simulator sẽ publish lên các topic `site/tenantA/home/<device>/telemetry` với payload lấy từ dataset CSV.
+   Simulator sẽ publish 21 device types lên các topic pattern khác nhau với payload từ canonical dataset.
 
 ## 🐳 Docker Deployment
 
@@ -248,14 +264,22 @@ docker-compose down
 
 ### Common Issues
 
-**🚨 Simulator payload format sai**
+**🚨 Simulator không có 21 devices**
 
 ```bash
-# Problem: {"value": "ature-6"} instead of {"value": 24.6, "unit": "C"}
-# Solution: Sử dụng enhanced mode (default) thay vì legacy mode
+# Problem: Chỉ thấy 9 devices thay vì 21
+# Solution: Check canonical_dataset.csv có đầy đủ 21 device types
 
-python unified_simulator.py --devices Temperature Humidity  # Enhanced mode
-python test_subscriber.py --all-zones  # Verify output
+python build_canonical_dataset.py --input datasets/ --output canonical_dataset.csv
+python canonical_simulator.py --broker localhost  # Sẽ hiện 21 devices
+```
+
+**🚨 EMQX Dashboard chỉ hiện 9 connections**
+
+```bash
+# Problem: Client ID collision
+# Solution: Đã fix với unique timestamp-based client IDs
+# Check EMQX dashboard: http://localhost:18083 (admin/public)
 ```
 
 **🚨 Connection refused**
@@ -280,9 +304,9 @@ python test_subscriber.py --broker localhost
 **🚨 Dataset processing errors**
 
 ```bash
-# Đảm bảo datasets/ folder tồn tại và có CSV files
-# Chỉnh sửa pattern nếu cần
-python build_canonical_dataset.py --pattern "*.csv" --force
+# Đảm bảo datasets/ folder có đầy đủ 21 CSV files
+# Edge-IIoT: 8 files, Gotham: 4 files, Original: 9 files
+python build_canonical_dataset.py --input datasets/ --force
 ```
 
 ## Chi tiết xử lý dữ liệu

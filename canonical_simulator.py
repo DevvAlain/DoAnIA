@@ -69,8 +69,9 @@ class CanonicalMQTTSimulator:
         """Chuẩn bị data cho từng device type từ canonical dataset"""
         logger.info("[SETUP] Preparing device datasets from canonical schema...")
         
-        # Group by device types dựa trên payload patterns
+        # Group by device types dựa trên payload patterns và topics
         device_patterns = {
+            # Original devices
             'Temperature': ['temperature', 'temp'],
             'Humidity': ['humidity', 'humid'],
             'CO2': ['co2', 'co-gas', 'gas'],
@@ -79,15 +80,34 @@ class CanonicalMQTTSimulator:
             'Smoke': ['smoke', 'fire'],
             'Fan': ['fan', 'speed'],
             'Door': ['door', 'lock'],
-            'Vibration': ['vibration', 'vib']
+            'Vibration': ['vibration', 'vib'],
+            
+            # Edge-IIoT devices
+            'DistanceSensor': ['Distance'],
+            'FlameSensor': ['Flame_Sensor'],
+            'IRReceiver': ['IR_receiver'],
+            'PhLevelSensor': ['PhLv'],
+            'SoilMoisture': ['soil_moisture'],
+            'SoundSensor': ['sound_sensors'],
+            'TempHumidity': ['TempAndHumdidity'],
+            'WaterLevel': ['WaterLV'],
+            
+            # Gotham city devices
+            'AirQuality': ['city/air'],
+            'CoolerMotor': ['vibration/cooler'],
+            'HydraulicSystem': ['hydraulic/rig'],
+            'PredictiveMaintenance': ['maintenance/iotsim']
         }
         
         for device_type, patterns in device_patterns.items():
-            # Filter records có payload match với device patterns
+            # Filter records có payload match với device patterns hoặc topic match
             device_records = self.canonical_data[
-                self.canonical_data['Payload_sample'].str.contains(
+                (self.canonical_data['Payload_sample'].str.contains(
                     '|'.join(patterns), case=False, na=False
-                )
+                )) |
+                (self.canonical_data['topic'].str.contains(
+                    '|'.join(patterns), case=False, na=False
+                ))
             ].copy()
             
             if not device_records.empty:
@@ -121,6 +141,7 @@ class CanonicalMQTTSimulator:
         
         # Device-specific payloads theo canonical format
         payload_templates = {
+            # Original devices
             'Temperature': lambda: json.dumps({
                 "device_id": f"temp_{random.randint(1,5):03d}",
                 "value": round(random.uniform(15.0, 35.0), 1),
@@ -136,6 +157,76 @@ class CanonicalMQTTSimulator:
                 "device_id": f"co2_{random.randint(1,3):03d}",
                 "value": random.randint(380, 600),
                 "unit": "ppm"
+            }),
+            
+            # Edge-IIoT devices
+            'DistanceSensor': lambda: json.dumps({
+                "device_id": f"distance_{random.randint(1,3):03d}",
+                "distance": round(random.uniform(0.5, 100.0), 2),
+                "unit": "cm"
+            }),
+            'FlameSensor': lambda: json.dumps({
+                "device_id": f"flame_{random.randint(1,3):03d}",
+                "flame_detected": random.choice([True, False]),
+                "intensity": random.randint(0, 1023)
+            }),
+            'IRReceiver': lambda: json.dumps({
+                "device_id": f"ir_{random.randint(1,3):03d}",
+                "ir_signal": f"0x{random.randint(0, 0xFFFFFF):06X}",
+                "protocol": random.choice(["NEC", "Sony", "RC5"])
+            }),
+            'PhLevelSensor': lambda: json.dumps({
+                "device_id": f"ph_{random.randint(1,3):03d}",
+                "ph_level": round(random.uniform(4.0, 10.0), 2),
+                "temperature": round(random.uniform(20.0, 30.0), 1)
+            }),
+            'SoilMoisture': lambda: json.dumps({
+                "device_id": f"soil_{random.randint(1,3):03d}",
+                "moisture": round(random.uniform(20.0, 80.0), 1),
+                "unit": "percent"
+            }),
+            'SoundSensor': lambda: json.dumps({
+                "device_id": f"sound_{random.randint(1,3):03d}",
+                "decibel": round(random.uniform(30.0, 90.0), 1),
+                "frequency": random.randint(200, 8000)
+            }),
+            'TempHumidity': lambda: json.dumps({
+                "device_id": f"temphum_{random.randint(1,3):03d}",
+                "temperature": round(random.uniform(15.0, 35.0), 1),
+                "humidity": round(random.uniform(30.0, 80.0), 1)
+            }),
+            'WaterLevel': lambda: json.dumps({
+                "device_id": f"water_{random.randint(1,3):03d}",
+                "level": round(random.uniform(0.0, 100.0), 2),
+                "unit": "percent"
+            }),
+            
+            # Gotham city devices
+            'AirQuality': lambda: json.dumps({
+                "device_id": f"airquality_{random.randint(1,3):03d}",
+                "pm25": round(random.uniform(5.0, 50.0), 1),
+                "pm10": round(random.uniform(10.0, 80.0), 1),
+                "co2": random.randint(400, 800),
+                "aqi": random.randint(50, 150)
+            }),
+            'CoolerMotor': lambda: json.dumps({
+                "device_id": f"cooler_{random.randint(1,3):03d}",
+                "vibration_x": round(random.uniform(-2.0, 2.0), 3),
+                "vibration_y": round(random.uniform(-2.0, 2.0), 3),
+                "vibration_z": round(random.uniform(-2.0, 2.0), 3),
+                "rpm": random.randint(1800, 3600)
+            }),
+            'HydraulicSystem': lambda: json.dumps({
+                "device_id": f"hydraulic_{random.randint(1,3):03d}",
+                "pressure": round(random.uniform(100.0, 300.0), 1),
+                "flow_rate": round(random.uniform(10.0, 50.0), 1),
+                "temperature": round(random.uniform(40.0, 80.0), 1)
+            }),
+            'PredictiveMaintenance': lambda: json.dumps({
+                "device_id": f"maintenance_{random.randint(1,3):03d}",
+                "status": random.choice(["low", "medium", "high"]),
+                "score": round(random.uniform(0.0, 1.0), 3),
+                "next_maintenance": random.randint(1, 30)
             })
         }
         
@@ -209,7 +300,9 @@ class CanonicalMQTTSimulator:
     def _simulate_device_canonical(self, device_type, publish_interval):
         """Simulate một device type từ canonical data"""
         device_records = self.device_data[device_type]
-        client_id = f"canonical_{device_type.lower()}_simulator"
+        # Ensure unique client ID để tránh collision
+        timestamp = int(time.time() * 1000) % 10000  # Last 4 digits of timestamp
+        client_id = f"canonical_{device_type.lower()}_{timestamp}_sim"
         
         # Create MQTT client with callback API v2
         client = mqtt.Client(
