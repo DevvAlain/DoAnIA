@@ -11,16 +11,23 @@ from datetime import datetime, timezone
 import random
 import logging
 
-# Setup logging for flow tracking
+# Setup logging for flow tracking  
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('simulator_flow.log'),
+        logging.FileHandler('simulator_flow.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Windows-compatible logging messages
+def log_error(device_type, error):
+    logger.error(f"[ERROR] {device_type} simulation error: {error}")
+
+def log_success(device_type):
+    logger.info(f"[OK] {device_type} canonical simulator connected")
 
 class CanonicalMQTTSimulator:
     """
@@ -82,14 +89,12 @@ class CanonicalMQTTSimulator:
             'Door': ['door', 'lock'],
             'Vibration': ['vibration', 'vib'],
             
-            # Edge-IIoT devices
+            # Edge-IIoT devices  
             'DistanceSensor': ['Distance'],
             'FlameSensor': ['Flame_Sensor'],
-            'IRReceiver': ['IR_receiver'],
             'PhLevelSensor': ['PhLv'],
             'SoilMoisture': ['soil_moisture'],
             'SoundSensor': ['sound_sensors'],
-            'TempHumidity': ['TempAndHumdidity'],
             'WaterLevel': ['WaterLV'],
             
             # Gotham city devices
@@ -170,11 +175,6 @@ class CanonicalMQTTSimulator:
                 "flame_detected": random.choice([True, False]),
                 "intensity": random.randint(0, 1023)
             }),
-            'IRReceiver': lambda: json.dumps({
-                "device_id": f"ir_{random.randint(1,3):03d}",
-                "ir_signal": f"0x{random.randint(0, 0xFFFFFF):06X}",
-                "protocol": random.choice(["NEC", "Sony", "RC5"])
-            }),
             'PhLevelSensor': lambda: json.dumps({
                 "device_id": f"ph_{random.randint(1,3):03d}",
                 "ph_level": round(random.uniform(4.0, 10.0), 2),
@@ -189,11 +189,6 @@ class CanonicalMQTTSimulator:
                 "device_id": f"sound_{random.randint(1,3):03d}",
                 "decibel": round(random.uniform(30.0, 90.0), 1),
                 "frequency": random.randint(200, 8000)
-            }),
-            'TempHumidity': lambda: json.dumps({
-                "device_id": f"temphum_{random.randint(1,3):03d}",
-                "temperature": round(random.uniform(15.0, 35.0), 1),
-                "humidity": round(random.uniform(30.0, 80.0), 1)
             }),
             'WaterLevel': lambda: json.dumps({
                 "device_id": f"water_{random.randint(1,3):03d}",
@@ -315,7 +310,7 @@ class CanonicalMQTTSimulator:
             # Connect to broker
             client.connect(self.broker, self.port, 60)
             client.loop_start()
-            logger.info(f"[OK] {device_type} canonical simulator connected")
+            log_success(device_type)
             
             record_idx = 0
             while not self.stop_event.is_set():
@@ -377,7 +372,7 @@ class CanonicalMQTTSimulator:
                 time.sleep(publish_interval)
                 
         except Exception as e:
-            logger.error(f"❌ {device_type} simulation error: {e}")
+            log_error(device_type, e)
         finally:
             if client.is_connected():
                 client.loop_stop()

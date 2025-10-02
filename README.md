@@ -3,25 +3,25 @@
 Dự án nghiên cứu bảo mật MQTT IoT bao gồm:
 
 - 🔄 **Data Pipeline**: Xử lý và chuẩn hóa dữ liệu MQTT từ CSV
-- 📡 **IoT Simulators**: Mô phỏng **21 thiết bị IoT** với payload chuẩn từ canonical dataset
+- 📡 **IoT Simulators**: Mô phỏng **19 thiết bị IoT** với payload chuẩn từ canonical dataset
 - ⚔️ **Attack Scripts**: 9 kịch bản tấn công MQTT để kiểm tra bảo mật
 - 🔬 **Analysis Tools**: Trích xuất đặc trưng và phân tích dữ liệu
 - ✨ **Production Ready**: Code đã được optimize với flow chuẩn
-- 🗂️ **Unified Data Source**: Tất cả simulator đọc từ canonical_dataset.csv (4.5M records)
+- 🗂️ **Unified Data Source**: Tất cả simulator đọc từ canonical_dataset.csv (4.0M records)
 
 ## 📁 Cấu trúc dự án
 
 ```
 Do An IA/
 ├── 📊 Data Processing Pipeline
-│   ├── datasets/                     # 21 dataset CSV từ Edge-IIoT + Gotham + Original
+│   ├── datasets/                     # 19 dataset CSV từ Edge-IIoT + Gotham + Original
 │   ├── build_canonical_dataset.py    # Chuẩn hóa CSV về schema chuẩn
-│   ├── canonical_dataset.csv         # Dataset đã chuẩn hóa (4.5M records)
+│   ├── canonical_dataset.csv         # Dataset đã chuẩn hóa (4.0M records)
 │   ├── features_canonical_dataset.csv # Features đã trích xuất
 │   └── feature_extract.py            # Trích xuất đặc trưng cho ML
 │
 ├── 📡 Production Simulation Flow
-│   ├── canonical_simulator.py        # Main simulator - 21 devices từ canonical dataset
+│   ├── canonical_simulator.py        # Main simulator - 19 devices từ canonical dataset
 │   ├── mqtt_traffic_collector.py     # EMQX → Traffic logging
 │   ├── test_subscriber.py            # Test và verify simulator output
 │   └── run_complete_flow.py          # End-to-end automation
@@ -80,7 +80,7 @@ python run_complete_flow.py --duration 180
 
 - Python 3.12+ (recommend)
 - Docker Desktop + Docker Compose
-- Bộ dataset CSV (21 files): Edge-IIoT, Gotham City, Original 9 devices
+- Bộ dataset CSV (19 files): Edge-IIoT, Gotham City, Original 9 devices
 
 ### 1. Setup Environment
 
@@ -115,13 +115,13 @@ docker-compose up -d
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
-#### 📡 Step 3: Canonical Simulation Flow (21 Devices)
+#### 📡 Step 3: Canonical Simulation Flow (19 Devices)
 
 ```bash
 # Terminal 1: Start traffic collection
 python mqtt_traffic_collector.py --broker localhost --log-file traffic_log.csv
 
-# Terminal 2: Start canonical simulator with 21 devices
+# Terminal 2: Start canonical simulator with 19 devices
 python canonical_simulator.py --broker localhost --duration 0
 
 # Terminal 3: Monitor traffic (optional)
@@ -142,9 +142,9 @@ python security_detector.py --features traffic_features.csv --alerts security_al
 
 ## 📡 IoT Devices & Payload Format
 
-### 🌡️ Supported Devices (21 Total)
+### 🌡️ Supported Devices (19 Total)
 
-Canonical simulator hỗ trợ 21 loại thiết bị IoT từ 3 nguồn dataset:
+Canonical simulator hỗ trợ 19 loại thiết bị IoT từ 3 nguồn dataset:
 
 #### **Original Devices (9)**
 
@@ -160,18 +160,16 @@ Canonical simulator hỗ trợ 21 loại thiết bị IoT từ 3 nguồn dataset
 | **Door**        | `site/canonical/door/device_*/telemetry`        | DoorlockMQTTset.csv           |
 | **Vibration**   | `vibration/cooler-iotsim-cooler-motor-1`        | FanSpeedControllerMQTTset.csv |
 
-#### **Edge-IIoT Devices (8)**
+#### **Edge-IIoT Devices (6)**
 
-| Device             | Topic Pattern                                      | Source Dataset                |
-| ------------------ | -------------------------------------------------- | ----------------------------- |
-| **DistanceSensor** | `site/canonical/distancesensor/device_*/telemetry` | DistanceSensorMQTTset.csv     |
-| **FlameSensor**    | `site/canonical/flamesensor/device_*/telemetry`    | FlameSensorMQTTset.csv        |
-| **IRReceiver**     | `site/canonical/irreceiver/device_*/telemetry`     | IRReceiverMQTTset.csv         |
-| **PhLevelSensor**  | `site/canonical/phlevelsensor/device_*/telemetry`  | PhLevelSensorMQTTset.csv      |
-| **SoilMoisture**   | `site/canonical/soilmoisture/device_*/telemetry`   | SoilMoistureMQTTset.csv       |
-| **SoundSensor**    | `site/canonical/soundsensor/device_*/telemetry`    | SoundSensorMQTTset.csv        |
-| **TempHumidity**   | `site/canonical/temphumidity/device_*/telemetry`   | TempHumiditySensorMQTTset.csv |
-| **WaterLevel**     | `site/canonical/waterlevel/device_*/telemetry`     | WaterLevelSensorMQTTset.csv   |
+| Device             | Topic Pattern                                      | Source Dataset                   |
+| ------------------ | -------------------------------------------------- | -------------------------------- |
+| **DistanceSensor** | `site/canonical/distancesensor/device_*/telemetry` | Edge-IIoTset_distance_sensor.csv |
+| **FlameSensor**    | `site/canonical/flamesensor/device_*/telemetry`    | Edge-IIoTset_flame_sensor.csv    |
+| **PhLevelSensor**  | `site/canonical/phlevelsensor/device_*/telemetry`  | Edge-IIoTset_PhLv.csv            |
+| **SoilMoisture**   | `site/canonical/soilmoisture/device_*/telemetry`   | Edge-IIoTset_soil_moisture.csv   |
+| **SoundSensor**    | `site/canonical/soundsensor/device_*/telemetry`    | Edge-IIoTset_sound_sensors.csv   |
+| **WaterLevel**     | `site/canonical/waterlevel/device_*/telemetry`     | Edge-IIoTset_WaterLV.csv         |
 
 #### **Gotham City Devices (4)**
 
@@ -198,7 +196,7 @@ Canonical simulator sử dụng payload thực từ packet capture:
 ### ⚡ Usage Examples
 
 ```bash
-# Chạy canonical simulator với 21 devices
+# Chạy canonical simulator với 19 devices
 python canonical_simulator.py --broker localhost --duration 0
 
 # Chạy với thời gian giới hạn (300 giây)
@@ -238,7 +236,7 @@ File đầu ra giữ lại các trường telemetry quan trọng (`timestamp`, `
    python canonical_simulator.py --broker localhost --port 1883 --duration 0
    ```
 
-   Simulator sẽ publish 21 device types lên các topic pattern khác nhau với payload từ canonical dataset.
+   Simulator sẽ publish 19 device types lên các topic pattern khác nhau với payload từ canonical dataset.
 
 ## 🐳 Docker Deployment
 
@@ -264,21 +262,21 @@ docker-compose down
 
 ### Common Issues
 
-**🚨 Simulator không có 21 devices**
+**🚨 Simulator không có 19 devices**
 
 ```bash
-# Problem: Chỉ thấy 9 devices thay vì 21
-# Solution: Check canonical_dataset.csv có đầy đủ 21 device types
+# Problem: Chỉ thấy 9 devices thay vì 19
+# Solution: Check canonical_dataset.csv có đầy đủ 19 device types
 
-python build_canonical_dataset.py --input datasets/ --output canonical_dataset.csv
-python canonical_simulator.py --broker localhost  # Sẽ hiện 21 devices
+python build_canonical_dataset.py datasets/ --output canonical_dataset.csv --force
+python canonical_simulator.py --broker localhost  # Sẽ hiện 19 devices
 ```
 
-**🚨 EMQX Dashboard chỉ hiện 9 connections**
+**🚨 EMQX Dashboard hiển thị 21 connections thay vì 19**
 
 ```bash
-# Problem: Client ID collision
-# Solution: Đã fix với unique timestamp-based client IDs
+# Problem: Dashboard đếm tất cả connections (bao gồm system/admin connections)
+# Solution: 19 device connections + 2 system connections = 21 total (bình thường)
 # Check EMQX dashboard: http://localhost:18083 (admin/public)
 ```
 
@@ -304,9 +302,9 @@ python test_subscriber.py --broker localhost
 **🚨 Dataset processing errors**
 
 ```bash
-# Đảm bảo datasets/ folder có đầy đủ 21 CSV files
-# Edge-IIoT: 8 files, Gotham: 4 files, Original: 9 files
-python build_canonical_dataset.py --input datasets/ --force
+# Đảm bảo datasets/ folder có đầy đủ 19 CSV files
+# Edge-IIoT: 6 files, Gotham: 4 files, Original: 9 files
+python build_canonical_dataset.py datasets/ --output canonical_dataset.csv --force
 ```
 
 ## Chi tiết xử lý dữ liệu
