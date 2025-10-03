@@ -1,13 +1,28 @@
 # CSV Dataset files (too large for Git)
 *.csv
+!requirements.txt
 
-# Log và temporary files
+# Log và temporary files  
 *.log
 *_log.csv
 *_traffic.csv
 test_*.csv
 security_report_*.txt
 simulator_flow.log
+
+# Temporary và cache files
+*temp*
+*tmp*
+*debug*
+*.swp
+*.swo
+*~
+
+# Documentation duplicates
+*.docx
+*.doc
+*Research_Documentation*
+*Comprehensive*
 
 # Python
 __pycache__/

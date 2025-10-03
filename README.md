@@ -22,6 +22,10 @@ Do An IA/
 │
 ├── 📡 Production Simulation Flow
 │   ├── canonical_simulator.py        # Main simulator - 19 devices từ canonical dataset
+│   ├── camera_mqtt_simulator.py      # 🎥 Camera IoT simulator (synthetic data)
+│   ├── test_camera_simulator.py      # 🧪 Simple camera test
+│   ├── camera_mqtt_subscriber.py     # 👂 Camera message listener
+│   ├── camera_demo.py                # 🎬 Camera demo runner
 │   ├── mqtt_traffic_collector.py     # EMQX → Traffic logging
 │   ├── test_subscriber.py            # Test và verify simulator output
 │   └── run_complete_flow.py          # End-to-end automation
@@ -128,6 +132,23 @@ python canonical_simulator.py --broker localhost --duration 0
 python test_subscriber.py --broker localhost --all-zones
 ```
 
+#### 🎥 Step 3.1: Camera Simulation (Alternative/Additional)
+
+```bash
+# Quick camera test
+python test_camera_simulator.py
+
+# Full camera demo (interactive)
+python camera_demo.py
+
+# Manual camera simulation
+# Terminal 1: Start camera subscriber
+python camera_mqtt_subscriber.py --broker localhost
+
+# Terminal 2: Start camera simulator (5 cameras for 120 seconds)
+python camera_mqtt_simulator.py --cameras 5 --duration 120 --broker localhost
+```
+
 #### 🛡️ Step 4: Security Detection
 
 ```bash
@@ -180,7 +201,21 @@ Canonical simulator hỗ trợ 19 loại thiết bị IoT từ 3 nguồn dataset
 | **HydraulicSystem**       | `hydraulic/rig-iotsim-hydraulic-system-1`       | HydraulicSystemMQTTset.csv       |
 | **PredictiveMaintenance** | `maintenance/iotsim-predictive-maintenance-1/*` | PredictiveMaintenanceMQTTset.csv |
 
+#### **Camera Devices (Synthetic Data)**
+
+| Device Type  | Topic Pattern                                   | Features                         |
+| ------------ | ----------------------------------------------- | -------------------------------- |
+| **Camera**   | `surveillance/{zone}/camera/{camera_id}/status` | 📊 Health, temperature, CPU, RAM |
+| **Motion**   | `surveillance/{zone}/camera/{camera_id}/motion` | 🚶 Motion detection, confidence  |
+| **Security** | `security/{zone}/camera/{camera_id}/event`      | 🚨 Person/face/vehicle detection |
+| **System**   | `system/{zone}/camera/{camera_id}/event`        | 🔧 Config changes, maintenance   |
+| **Stream**   | `surveillance/{zone}/camera/{camera_id}/stream` | 📹 FPS, bitrate, quality score   |
+
+**Camera Zones**: `entrance`, `lobby`, `parking`, `warehouse`, `office`, `cafeteria`, `server_room`
+
 ### 🎯 Payload Format
+
+#### Canonical Simulator (19 Devices từ Dataset)
 
 Canonical simulator sử dụng payload thực từ packet capture:
 
@@ -190,6 +225,26 @@ Canonical simulator sử dụng payload thực từ packet capture:
   "canonical_source": "dataset_canonical",
   "raw_payload": "24.07 75.32",
   "simulator_timestamp": "2025-10-02T13:04:12"
+}
+```
+
+#### Camera Simulator (Synthetic Data)
+
+Camera simulator tạo payload synthetic chuyên biệt:
+
+```json
+{
+  "device_type": "Camera",
+  "event_type": "motion_detected",
+  "camera_id": "cam_001",
+  "zone": "entrance",
+  "timestamp": "2025-10-03T10:15:30.123Z",
+  "confidence": 0.87,
+  "motion_area_percent": 12.5,
+  "bounding_boxes": [
+    { "x": 450, "y": 200, "width": 120, "height": 180, "confidence": 0.92 }
+  ],
+  "alert_level": "medium"
 }
 ```
 
